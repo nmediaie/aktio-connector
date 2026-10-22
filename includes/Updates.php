@@ -3,7 +3,8 @@
  * Aktualizacje rdzenia, wtyczek i motywów, auto-aktualizacje i dziennik.
  *
  * Bez automatycznego cofania (C9): każda próba (udana lub nie) trafia do dziennika
- * razem z wynikiem sprawdzenia strony po aktualizacji (`site_ok`).
+ * razem z wynikiem sprawdzenia strony po aktualizacji (`site_ok`: true/false,
+ * null = nie sprawdzano — up_to_date albo aktualizacja z crona WP).
  *
  * @package AktioConnector
  */
@@ -200,11 +201,12 @@ class Updates {
 				return self::invalid( __( 'core_level musi być jednym z: minor, all, off.', 'aktio-connector' ) );
 			}
 			update_option( self::CORE_AUTO_OPTION, $core_level, false );
+			$effective = self::core_level(); // Np. 'off', gdy updater WP jest wyłączony.
 			return array(
 				'type'       => 'core',
 				'item'       => 'core',
-				'enabled'    => 'off' !== $core_level,
-				'core_level' => $core_level,
+				'enabled'    => 'off' !== $effective,
+				'core_level' => $effective,
 			);
 		}
 
@@ -214,6 +216,14 @@ class Updates {
 		}
 		if ( null === $enabled ) {
 			return self::invalid( __( 'Pole enabled (true/false) jest wymagane.', 'aktio-connector' ) );
+		}
+
+		if ( ! wp_is_auto_update_enabled_for_type( $type ) ) {
+			return self::invalid(
+				'plugin' === $type
+					? __( 'Automatyczne aktualizacje wtyczek są na tej stronie wyłączone (filtr lub stała w konfiguracji).', 'aktio-connector' )
+					: __( 'Automatyczne aktualizacje motywów są na tej stronie wyłączone (filtr lub stała w konfiguracji).', 'aktio-connector' )
+			);
 		}
 
 		$option  = 'plugin' === $type ? 'auto_update_plugins' : 'auto_update_themes';
@@ -231,10 +241,50 @@ class Updates {
 		);
 	}
 
-	/** Poziom auto-aktualizacji rdzenia (domyślnie minor). */
+	/**
+	 * Faktyczny poziom auto-aktualizacji rdzenia: zapisany przez Aktio albo wyliczony
+	 * z ustawień WordPressa; wyłączony automatyczny updater = 'off'.
+	 */
 	public static function core_level(): string {
-		$level = get_option( self::CORE_AUTO_OPTION );
-		return in_array( $level, self::CORE_LEVELS, true ) ? $level : 'minor';
+		require_once ABSPATH . 'wp-admin/includes/class-wp-automatic-updater.php';
+		$updater = new \WP_Automatic_Updater();
+		return self::derive_core_level(
+			get_option( self::CORE_AUTO_OPTION ),
+			defined( 'WP_AUTO_UPDATE_CORE' ),
+			defined( 'WP_AUTO_UPDATE_CORE' ) ? WP_AUTO_UPDATE_CORE : null,
+			get_site_option( 'auto_update_core_major' ),
+			$updater->is_disabled()
+		);
+	}
+
+	/**
+	 * Czysta funkcja wyliczająca poziom (seam do testów stałych z wp-config.php).
+	 *
+	 * @param mixed $stored        Opcja aktio_connector_core_auto (false, gdy brak).
+	 * @param bool  $const_defined Czy zdefiniowano WP_AUTO_UPDATE_CORE.
+	 * @param mixed $const         Wartość WP_AUTO_UPDATE_CORE.
+	 * @param mixed $major_option  Site option auto_update_core_major.
+	 * @param bool  $disabled      WP_Automatic_Updater::is_disabled() (AUTOMATIC_UPDATER_DISABLED, filtr automatic_updater_disabled).
+	 */
+	public static function derive_core_level( $stored, bool $const_defined, $const, $major_option, bool $disabled ): string {
+		if ( $disabled ) {
+			return 'off';
+		}
+		if ( in_array( $stored, self::CORE_LEVELS, true ) ) {
+			return $stored;
+		}
+		if ( $const_defined ) {
+			if ( false === $const ) {
+				return 'off';
+			}
+			if ( 'minor' === $const ) {
+				return 'minor';
+			}
+			if ( true === $const || in_array( $const, array( 'beta', 'rc', 'development', 'branch-development' ), true ) ) {
+				return 'all';
+			}
+		}
+		return 'enabled' === $major_option ? 'all' : 'minor';
 	}
 
 	/**
@@ -352,7 +402,8 @@ class Updates {
 		if ( ! $entries ) {
 			return;
 		}
-		$site_ok = self::site_ok();
+		// W cronie (auto-aktualizacje WP) bez loopbacku: site_ok = null znaczy „nie sprawdzano”.
+		$site_ok = wp_doing_cron() ? null : self::site_ok();
 		foreach ( $entries as $e ) {
 			self::add_log( array_merge( $e, array( 'by' => 'user', 'site_ok' => $site_ok ) ) );
 		}
@@ -561,12 +612,14 @@ class Updates {
 		return null;
 	}
 
-	/** Loopback na stronę główną: 2xx/3xx i bez komunikatu o błędzie krytycznym. */
+	/** Loopback na stronę główną (z pominięciem cache): 2xx/3xx i bez komunikatu o błędzie krytycznym. */
 	private static function site_ok(): bool {
+		// Parametr i nagłówek omijają cache stron — inaczej zepsuty PHP mógłby dać zielone site_ok.
 		$response = wp_remote_get(
-			home_url( '/' ),
+			add_query_arg( 'aktio_check', (string) time(), home_url( '/' ) ),
 			array(
 				'timeout'   => 15,
+				'headers'   => array( 'Cache-Control' => 'no-cache' ),
 				/** Filtr opisany w wp-includes/class-wp-http-streams.php (jak loopback Site Health). */
 				'sslverify' => apply_filters( 'https_local_ssl_verify', false ),
 			)

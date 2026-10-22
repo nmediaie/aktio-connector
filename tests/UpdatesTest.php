@@ -33,6 +33,9 @@ class Aktio_Fake_Upgrader extends WP_Upgrader {
 
 class UpdatesTest extends WP_UnitTestCase {
 
+	/** Żądania loopbacku przechwycone przez atrapę: [url, args]. */
+	private $loopback_calls = array();
+
 	/** Ścieżka atrapy wtyczki zakładanej w katalogu wtyczek (sprzątana w tear_down). */
 	private $dummy_dir;
 
@@ -49,6 +52,10 @@ class UpdatesTest extends WP_UnitTestCase {
 		delete_option( 'aktio_connector_update_log' );
 		delete_option( 'aktio_connector_core_auto' );
 		delete_site_option( 'auto_update_plugins' );
+		delete_site_option( 'auto_update_core_major' );
+		// Biblioteka testów WP wyłącza automatyczny updater — tu chcemy stanu jak na zwykłej stronie.
+		add_filter( 'automatic_updater_disabled', '__return_false', 100 );
+		$this->loopback_calls = array();
 		$this->dummy_dir = WP_PLUGIN_DIR . '/aktio-dummy';
 		$this->write_dummy( '1.0.0' );
 	}
@@ -103,10 +110,12 @@ class UpdatesTest extends WP_UnitTestCase {
 	}
 
 	private function loopback( int $code, string $body ): void {
+		$calls = &$this->loopback_calls;
 		add_filter(
 			'pre_http_request',
-			static function ( $pre, $args, $url ) use ( $code, $body ) {
+			static function ( $pre, $args, $url ) use ( $code, $body, &$calls ) {
 				if ( 0 === strpos( $url, home_url( '/' ) ) ) {
+					$calls[] = array( $url, $args );
 					return array(
 						'headers'  => array(),
 						'body'     => $body,
@@ -229,6 +238,13 @@ class UpdatesTest extends WP_UnitTestCase {
 		$this->assertSame( '1.0.0', $r['from'] );
 		$this->assertSame( '2.0.0', $r['to'] );
 		$this->assertTrue( $r['site_ok'] );
+		// Loopback z pominięciem cache stron.
+		$this->assertCount( 1, $this->loopback_calls );
+		list( $url, $args ) = $this->loopback_calls[0];
+		$this->assertMatchesRegularExpression( '/[?&]aktio_check=\d+/', $url );
+		$this->assertStringStartsWith( home_url( '/' ), $url );
+		$this->assertSame( 'no-cache', $args['headers']['Cache-Control'] );
+		$this->assertSame( 15, $args['timeout'] );
 
 		$log = Updates::log();
 		$this->assertCount( 1, $log );
@@ -432,6 +448,79 @@ class UpdatesTest extends WP_UnitTestCase {
 			Updates::set_auto( 'core', null, null, $level );
 			$this->assertSame( $expect[0], apply_filters( 'allow_major_auto_core_updates', null ), $level );
 			$this->assertSame( $expect[1], apply_filters( 'allow_minor_auto_core_updates', null ), $level );
+		}
+	}
+
+	public function test_user_update_in_cron_skips_loopback_site_ok_null() {
+		$this->loopback( 200, 'ok' );
+		add_filter( 'wp_doing_cron', '__return_true' );
+		apply_filters( 'upgrader_pre_install', true, array( 'plugin' => 'aktio-dummy/aktio-dummy.php' ) );
+		$this->write_dummy( '1.2.0' );
+		do_action(
+			'upgrader_process_complete',
+			new Plugin_Upgrader( new WP_Ajax_Upgrader_Skin() ),
+			array( 'action' => 'update', 'type' => 'plugin', 'plugins' => array( 'aktio-dummy/aktio-dummy.php' ) )
+		);
+		$log = Updates::log();
+		$this->assertCount( 1, $log );
+		$this->assertNull( $log[0]['site_ok'] );
+		$this->assertSame( array(), $this->loopback_calls );
+	}
+
+	public function test_set_auto_rejected_when_auto_updates_disabled_for_type() {
+		add_filter( 'plugins_auto_update_enabled', '__return_false' );
+		$r = Updates::set_auto( 'plugin', 'hello', true, null );
+		$this->assertWPError( $r );
+		$this->assertSame( 'aktio_invalid_params', $r->get_error_code() );
+		$this->assertStringContainsString( 'wyłączone', $r->get_error_message() );
+		$this->assertFalse( get_site_option( 'auto_update_plugins' ) );
+		$this->assertSame( 400, $this->request( 'POST', '/auto-updates', array( 'type' => 'plugin', 'item' => 'hello', 'enabled' => true ) )->get_status() );
+
+		add_filter( 'themes_auto_update_enabled', '__return_false' );
+		$r = Updates::set_auto( 'theme', get_stylesheet(), true, null );
+		$this->assertSame( 'aktio_invalid_params', $r->get_error_code() );
+	}
+
+	public function test_core_level_reported_from_wordpress_when_not_set_by_aktio() {
+		$this->assertSame( 'minor', Updates::core_level() );
+		update_site_option( 'auto_update_core_major', 'enabled' );
+		$this->assertSame( 'all', Updates::core_level() );
+		$this->assertSame( 'all', Updates::available()['auto_updates']['core'] );
+		update_site_option( 'auto_update_core_major', 'disabled' );
+		$this->assertSame( 'minor', Updates::core_level() );
+
+		// Zapis przez Aktio ma pierwszeństwo przed opcją WP.
+		update_site_option( 'auto_update_core_major', 'enabled' );
+		Updates::set_auto( 'core', null, null, 'minor' );
+		$this->assertSame( 'minor', Updates::core_level() );
+
+		// Wyłączony automatyczny updater = off niezależnie od zapisu.
+		add_filter( 'automatic_updater_disabled', '__return_true', 200 );
+		$this->assertSame( 'off', Updates::core_level() );
+		$r = Updates::set_auto( 'core', null, null, 'all' );
+		$this->assertSame( 'off', $r['core_level'] );
+		$this->assertFalse( $r['enabled'] );
+	}
+
+	/**
+	 * Stałych z wp-config.php nie da się przedefiniować w teście — sprawdzamy czystą funkcję.
+	 */
+	public function test_derive_core_level_from_constants() {
+		$cases = array(
+			array( false, true, true, false, false, 'all' ),
+			array( false, true, 'beta', false, false, 'all' ),
+			array( false, true, 'rc', false, false, 'all' ),
+			array( false, true, 'development', false, false, 'all' ),
+			array( false, true, 'minor', 'enabled', false, 'minor' ),
+			array( false, true, false, 'enabled', false, 'off' ),
+			array( false, false, null, 'enabled', false, 'all' ),
+			array( false, false, null, false, false, 'minor' ),
+			array( 'all', true, false, false, false, 'all' ),
+			array( 'minor', false, null, false, true, 'off' ),
+			array( 'weird', false, null, false, false, 'minor' ),
+		);
+		foreach ( $cases as $i => $c ) {
+			$this->assertSame( $c[5], Updates::derive_core_level( $c[0], $c[1], $c[2], $c[3], $c[4] ), 'przypadek ' . $i );
 		}
 	}
 }
