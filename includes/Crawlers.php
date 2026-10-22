@@ -25,6 +25,9 @@ class Crawlers {
 		add_filter( 'query_vars', array( __CLASS__, 'query_vars' ) );
 		add_action( 'template_redirect', array( __CLASS__, 'serve' ) );
 		add_action( 'save_post', array( __CLASS__, 'clear_cache' ) );
+		add_action( 'deleted_post', array( __CLASS__, 'clear_cache' ) );
+		add_action( 'update_option_blogname', array( __CLASS__, 'clear_cache' ) );
+		add_action( 'update_option_blogdescription', array( __CLASS__, 'clear_cache' ) );
 		add_action( 'aktio_connector_settings_updated', array( __CLASS__, 'clear_cache' ) );
 	}
 

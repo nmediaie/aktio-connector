@@ -186,4 +186,17 @@ class CrawlersTest extends WP_UnitTestCase {
 		$p->save();
 		return $p;
 	}
+
+	public function test_llms_cache_cleared_on_delete_and_site_title_changes() {
+		$id = self::factory()->post->create();
+		set_transient( Crawlers::TRANSIENT, 'x', HOUR_IN_SECONDS );
+		wp_delete_post( $id, true );
+		$this->assertFalse( get_transient( Crawlers::TRANSIENT ), 'deleted_post' );
+		set_transient( Crawlers::TRANSIENT, 'x', HOUR_IN_SECONDS );
+		update_option( 'blogdescription', 'Opis ' . wp_generate_password( 6, false ) );
+		$this->assertFalse( get_transient( Crawlers::TRANSIENT ), 'blogdescription' );
+		set_transient( Crawlers::TRANSIENT, 'x', HOUR_IN_SECONDS );
+		update_option( 'blogname', 'Nowa nazwa ' . wp_generate_password( 6, false ) );
+		$this->assertFalse( get_transient( Crawlers::TRANSIENT ) );
+	}
 }

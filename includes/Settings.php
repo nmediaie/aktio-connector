@@ -49,7 +49,20 @@ class Settings {
 		if ( ! is_array( $stored ) ) {
 			$stored = array();
 		}
-		return self::merge( $defaults, $stored );
+		$settings = self::merge( $defaults, $stored );
+		if ( '' === $settings['company']['name'] ) {
+			$settings['company']['name'] = $defaults['company']['name'];
+		}
+		return $settings;
+	}
+
+	/**
+	 * Nazwa firmy zapisana przez użytkownika ('' = brak, obowiązuje nazwa witryny).
+	 */
+	private static function stored_name(): string {
+		$stored = get_option( self::OPTION, array() );
+		$name   = is_array( $stored ) && isset( $stored['company']['name'] ) ? $stored['company']['name'] : '';
+		return is_string( $name ) ? $name : '';
 	}
 
 	/**
@@ -58,7 +71,19 @@ class Settings {
 	public static function update( array $partial ): array {
 		$current = self::get();
 		$merged  = self::merge( $current, $partial );
-		update_option( self::OPTION, $merged, true );
+
+		// Zapisujemy tylko to, co ustawił użytkownik: nazwa z witryny nie jest zamrażana.
+		$to_store = $merged;
+		if ( isset( $partial['company'] ) && is_array( $partial['company'] ) && array_key_exists( 'name', $partial['company'] ) ) {
+			$to_store['company']['name'] = $merged['company']['name'];
+		} else {
+			$to_store['company']['name'] = self::stored_name();
+		}
+		update_option( self::OPTION, $to_store, true );
+
+		if ( '' === $merged['company']['name'] ) {
+			$merged['company']['name'] = (string) get_bloginfo( 'name' );
+		}
 		do_action( 'aktio_connector_settings_updated', $merged );
 		return $merged;
 	}

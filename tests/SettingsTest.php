@@ -44,4 +44,24 @@ class SettingsTest extends WP_UnitTestCase {
 		$this->assertSame( 'LocalBusiness', $s['company']['type'] );
 		$this->assertSame( 'https://example.com/logo.png', $s['company']['logo'] );
 	}
+
+	public function test_company_name_not_frozen_to_site_name() {
+		update_option( 'blogname', 'Pierwsza' );
+		Settings::update( array( 'company' => array( 'phone' => '123' ) ) );
+		$this->assertSame( 'Pierwsza', Settings::get()['company']['name'] );
+		update_option( 'blogname', 'Druga' );
+		$this->assertSame( 'Druga', Settings::get()['company']['name'] );
+		$this->assertSame( '', get_option( Settings::OPTION )['company']['name'] );
+	}
+
+	public function test_explicit_company_name_is_kept_and_empty_falls_back() {
+		update_option( 'blogname', 'Witryna' );
+		$s = Settings::update( array( 'company' => array( 'name' => 'Moja Firma' ) ) );
+		$this->assertSame( 'Moja Firma', $s['company']['name'] );
+		update_option( 'blogname', 'Inna' );
+		$this->assertSame( 'Moja Firma', Settings::get()['company']['name'] );
+		$s = Settings::update( array( 'company' => array( 'name' => '' ) ) );
+		$this->assertSame( 'Inna', $s['company']['name'] );
+		$this->assertSame( 'Inna', Settings::get()['company']['name'] );
+	}
 }
