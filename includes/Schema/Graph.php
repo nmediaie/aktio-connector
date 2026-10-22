@@ -63,7 +63,7 @@ class Graph {
 	 * Tekst bez HTML i shortcode'ów, skrócony do $max znaków.
 	 */
 	public static function plain( string $text, int $max = 300 ): string {
-		$text = trim( preg_replace( '/\s+/u', ' ', wp_strip_all_tags( strip_shortcodes( $text ) ) ) );
+		$text = trim( (string) preg_replace( '/\s+/u', ' ', wp_strip_all_tags( strip_shortcodes( $text ) ) ) );
 		$text = html_entity_decode( $text, ENT_QUOTES, 'UTF-8' );
 		return function_exists( 'mb_substr' ) ? mb_substr( $text, 0, $max ) : substr( $text, 0, $max );
 	}

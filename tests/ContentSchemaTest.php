@@ -160,20 +160,42 @@ class ContentSchemaTest extends WP_UnitTestCase {
 		$this->assertSame( 'Product', $g[0]['@type'] );
 	}
 
-	public function test_script_tag_cannot_be_closed_by_title() {
-		$title = 'Hello </script><script>alert(1)</script> „cytat” 🌿';
-		// Administrator ma unfiltered_html, więc tytuł zapisze się bez wycięcia znaczników przez kses.
-		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
-		$id = self::factory()->post->create( array( 'post_title' => $title ) );
-		$this->assertSame( $title, get_post( $id )->post_title );
+	public function test_title_with_quotes_and_emoji_round_trips() {
+		$title = 'Wpis „cytat” 🌿';
+		$id    = self::factory()->post->create( array( 'post_title' => $title ) );
 		$this->go_to( get_permalink( $id ) );
+		$article = $this->by_type( $this->graph(), 'Article' );
+		$this->assertSame( $title, $article['headline'] );
+		$this->assertStringContainsString( '🌿', Graph::render() );
+	}
+
+	public function test_script_tag_cannot_be_closed_by_node_value() {
+		$raw = 'Hello </script><script>alert(1)</script>';
+		$cb  = static function ( $nodes ) use ( $raw ) {
+			$nodes[] = array( '@type' => 'Thing', 'name' => $raw );
+			return $nodes;
+		};
+		add_filter( Graph::FILTER, $cb );
+		$this->go_to( home_url( '/' ) );
 		$out = Graph::render();
+		remove_filter( Graph::FILTER, $cb );
 		$this->assertSame( 1, substr_count( $out, '</script>' ) );
 		$this->assertSame( 1, substr_count( $out, '<script' ) );
 		preg_match( '#^<script type="application/ld\+json">(.*)</script>\s*$#s', $out, $m );
-		$data    = json_decode( $m[1], true );
-		$article = $this->by_type( $data['@graph'], 'Article' );
-		$this->assertSame( $title, $article['headline'] );
-		$this->assertStringContainsString( '🌿', $out );
+		$thing = $this->by_type( json_decode( $m[1], true )['@graph'], 'Thing' );
+		$this->assertSame( $raw, $thing['name'] );
+	}
+
+	public function test_password_protected_post_content_not_leaked() {
+		$id = self::factory()->post->create(
+			array(
+				'post_title'    => 'Chronione',
+				'post_content'  => 'secret',
+				'post_excerpt'  => 'secret',
+				'post_password' => 'haslo',
+			)
+		);
+		$this->go_to( get_permalink( $id ) );
+		$this->assertStringNotContainsString( 'secret', Graph::render() );
 	}
 }

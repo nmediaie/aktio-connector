@@ -108,11 +108,15 @@ class ContentSchema {
 		if ( ! $post ) {
 			return get_bloginfo( 'name' );
 		}
-		// Surowy tytuł bez filtrów (wptexturize itd.); bezpieczeństwo zapewnia JSON_HEX_TAG.
-		return wp_specialchars_decode( $post->post_title, ENT_QUOTES );
+		// Surowy tytuł bez filtrów (wptexturize itd.), ale bez HTML.
+		return Graph::plain( $post->post_title, 200 );
 	}
 
 	private static function description( \WP_Post $post ): string {
+		// Treść chronioną hasłem lub niepublikowaną nie wypisujemy do <head>.
+		if ( 'publish' !== $post->post_status || post_password_required( $post ) ) {
+			return '';
+		}
 		$text = '' !== trim( $post->post_excerpt ) ? $post->post_excerpt : $post->post_content;
 		return Graph::plain( $text );
 	}
