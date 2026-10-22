@@ -25,7 +25,9 @@ require_once __DIR__ . '/includes/Updates.php';
 require_once __DIR__ . '/includes/Rest.php';
 require_once __DIR__ . '/includes/Schema/Graph.php';
 require_once __DIR__ . '/includes/Schema/ContentSchema.php';
+require_once __DIR__ . '/includes/Schema/ProductSchema.php';
 
 \AktioConnector\Rest::register();
 \AktioConnector\Schema\Graph::register();
 \AktioConnector\Schema\ContentSchema::register();
+\AktioConnector\Schema\ProductSchema::register();
