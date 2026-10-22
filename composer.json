@@ -1,0 +1,17 @@
+{
+  "name": "nmediaie/aktio-connector",
+  "description": "Aktio Connector - schema.org, robots.txt, llms.txt, Site Health i aktualizacje dla Aktio.",
+  "license": "GPL-2.0-or-later",
+  "type": "wordpress-plugin",
+  "require": {
+    "php": ">=7.4"
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^9",
+    "yoast/phpunit-polyfills": "^2.0"
+  },
+  "config": {
+    "platform": { "php": "7.4.33" },
+    "sort-packages": true
+  }
+}

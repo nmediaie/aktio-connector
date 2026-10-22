@@ -1,0 +1,7 @@
+{
+  "core": "WordPress/WordPress#6.2",
+  "phpVersion": "8.2",
+  "plugins": [
+    "."
+  ]
+}

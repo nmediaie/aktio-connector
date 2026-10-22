@@ -1,0 +1,8 @@
+{
+  "name": "aktio-connector",
+  "private": true,
+  "description": "Środowisko deweloperskie wtyczki Aktio Connector (wp-env).",
+  "devDependencies": {
+    "@wordpress/env": "^10.0.0"
+  }
+}
