@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name:       Aktio Connector
- * Description:       Schema.org, robots.txt i llms.txt dla botów AI, Site Health i aktualizacje — do współpracy z Aktio.
+ * Description:       Schema.org, robots.txt and llms.txt for AI bots, Site Health and updates over REST — standalone or with Aktio.
  * Version:           0.1.0
  * Requires at least: 6.2
  * Requires PHP:      7.4
