@@ -26,8 +26,13 @@ require_once __DIR__ . '/includes/Rest.php';
 require_once __DIR__ . '/includes/Schema/Graph.php';
 require_once __DIR__ . '/includes/Schema/ContentSchema.php';
 require_once __DIR__ . '/includes/Schema/ProductSchema.php';
+require_once __DIR__ . '/includes/Crawlers.php';
 
 \AktioConnector\Rest::register();
 \AktioConnector\Schema\Graph::register();
 \AktioConnector\Schema\ContentSchema::register();
 \AktioConnector\Schema\ProductSchema::register();
+\AktioConnector\Crawlers::register();
+
+register_activation_hook( __FILE__, array( '\\AktioConnector\\Crawlers', 'activate' ) );
+register_deactivation_hook( __FILE__, array( '\\AktioConnector\\Crawlers', 'deactivate' ) );

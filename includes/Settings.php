@@ -59,6 +59,7 @@ class Settings {
 		$current = self::get();
 		$merged  = self::merge( $current, $partial );
 		update_option( self::OPTION, $merged, true );
+		do_action( 'aktio_connector_settings_updated', $merged );
 		return $merged;
 	}
 
