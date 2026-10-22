@@ -349,6 +349,43 @@ class ProductSchemaTest extends WP_UnitTestCase {
 		$this->assertSame( 1, $this->count_product_nodes_on_page( $this->simple() ) );
 	}
 
+	public function test_single_breadcrumb_list_on_product_page_when_aktio_owns_content_schema() {
+		$p = $this->simple();
+		$this->assertSame( 1, $this->count_breadcrumb_lists_on_page( $p ) );
+	}
+
+	public function test_wc_breadcrumb_kept_when_seo_plugin_owns_content_schema() {
+		$this->plugin( 'wordpress-seo/wp-seo.php', 'Yoast SEO' );
+		// Aktio nie dodaje własnych okruszków — zostaje lista WooCommerce.
+		$this->assertSame( 1, $this->count_breadcrumb_lists_on_page( $this->simple() ) );
+	}
+
+	/** Węzły BreadcrumbList ze wszystkich bloków JSON-LD po wyrenderowaniu okruszków WC, wp_head i wp_footer. */
+	private function count_breadcrumb_lists_on_page( \WC_Product $p ): int {
+		$this->go_to( get_permalink( $p->get_id() ) );
+		$GLOBALS['product'] = $p;
+		// WC()->structured_data żyje przez cały proces testów — zerujemy dane z poprzednich testów.
+		$data = new \ReflectionProperty( \WC_Structured_Data::class, '_data' );
+		$data->setAccessible( true );
+		$data->setValue( WC()->structured_data, array() );
+		ob_start();
+		woocommerce_breadcrumb();
+		do_action( 'wp_head' );
+		do_action( 'wp_footer' );
+		$html = ob_get_clean();
+		preg_match_all( '#<script type="application/ld\+json">(.*?)</script>#s', $html, $m );
+		$count = 0;
+		foreach ( $m[1] as $json ) {
+			$data = json_decode( $json, true );
+			foreach ( isset( $data['@graph'] ) ? $data['@graph'] : array( $data ) as $node ) {
+				if ( isset( $node['@type'] ) && 'BreadcrumbList' === $node['@type'] ) {
+					$count++;
+				}
+			}
+		}
+		return $count;
+	}
+
 	/** Węzły Product/ProductGroup najwyższego poziomu ze wszystkich bloków JSON-LD w wp_head + wp_footer. */
 	private function count_product_nodes_on_page( \WC_Product $p ): int {
 		$this->go_to( get_permalink( $p->get_id() ) );

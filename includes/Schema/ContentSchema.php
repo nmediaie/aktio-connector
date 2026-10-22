@@ -17,6 +17,19 @@ class ContentSchema {
 
 	public static function register(): void {
 		add_filter( Graph::FILTER, array( __CLASS__, 'add_nodes' ) );
+		add_filter( 'woocommerce_structured_data_breadcrumblist', array( __CLASS__, 'suppress_wc_breadcrumb' ) );
+	}
+
+	/**
+	 * Na stronach, gdzie Aktio samo dodaje BreadcrumbList (wpis/strona/produkt,
+	 * nie strona główna), wycina okruszki WooCommerce, żeby lista była jedna.
+	 * Pusta tablica sprawia, że WC_Structured_Data::set_data() odrzuca węzeł.
+	 */
+	public static function suppress_wc_breadcrumb( $markup ) {
+		if ( Detector::owns( 'content_schema' ) && is_singular() && ! is_front_page() ) {
+			return array();
+		}
+		return $markup;
 	}
 
 	public static function add_nodes( $nodes ) {
