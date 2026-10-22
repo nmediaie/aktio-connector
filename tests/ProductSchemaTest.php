@@ -7,6 +7,7 @@ class ProductSchemaTest extends WP_UnitTestCase {
 
 	private $active = array();
 	private $dirs   = array();
+	private $standalone_reviews = 0;
 
 	public function set_up() {
 		parent::set_up();
@@ -269,9 +270,13 @@ class ProductSchemaTest extends WP_UnitTestCase {
 	}
 
 	public function test_password_protected_or_unpublished_product_has_no_node() {
-		$this->assertNull( $this->product_node( $this->simple( array( 'password' => 'tajne' ) ) ) );
+		$locked = $this->simple( array( 'password' => 'tajne' ) );
+		$this->assertNull( $this->product_node( $locked ) );
+		$this->assertTrue( is_singular( 'product' ) ); // kontrola pozytywna: to strona produktu
 		$draft = $this->simple( array( 'status' => 'draft' ) );
+		wp_set_current_user( 0 );
 		$this->go_to( '/?p=' . $draft->get_id() . '&post_type=product' );
+		$this->assertTrue( is_singular( 'product' ) || is_404() );
 		foreach ( Graph::nodes() as $n ) {
 			$this->assertNotContains( $n['@type'], array( 'Product', 'ProductGroup' ) );
 		}
@@ -305,13 +310,36 @@ class ProductSchemaTest extends WP_UnitTestCase {
 		$this->assertSame( 'PL', $sd['shippingDestination'][0]['addressCountry'] );
 	}
 
+	public function test_zone_lookup_happens_once_for_variable_product() {
+		$p      = $this->variable( array( 'S' => '10', 'M' => '12', 'L' => '14' ) );
+		$before = ProductSchema::$zone_lookups;
+		$this->assertCount( 3, $this->product_node( $p )['hasVariant'] );
+		$this->assertSame( 1, ProductSchema::$zone_lookups - $before );
+	}
+
+	public function test_seller_is_reference_when_aktio_emits_organization() {
+		$node = $this->product_node( $this->simple() );
+		$this->assertSame( array( '@id' => home_url( '/#organization' ) ), $node['offers']['seller'] );
+		$types = array_column( $this->graph(), '@type' );
+		$this->assertContains( 'Organization', $types );
+	}
+
+	public function test_seller_is_inline_organization_when_seo_plugin_owns_content_schema() {
+		$this->plugin( 'wordpress-seo/wp-seo.php', 'Yoast SEO' );
+		update_option( Settings::OPTION, array( 'company' => array( 'name' => 'Sklep Testowy' ) ) );
+		$node = $this->product_node( $this->simple() );
+		$this->assertSame( array( '@type' => 'Organization', 'name' => 'Sklep Testowy' ), $node['offers']['seller'] );
+	}
+
 	public function test_no_shipping_details_without_exactly_one_zone() {
 		$this->assertArrayNotHasKey( 'shippingDetails', $this->product_node( $this->simple() )['offers'] );
 	}
 
 	public function test_core_wc_structured_data_removed_when_aktio_owns_product_schema() {
 		$p = $this->simple();
-		$this->assertSame( 1, $this->count_product_nodes_on_page( $p ) );
+		$this->review( $p->get_id(), 5, 'Super' );
+		$this->assertSame( 1, $this->count_product_nodes_on_page( wc_get_product( $p->get_id() ) ) );
+		$this->assertSame( 0, $this->standalone_reviews );
 	}
 
 	public function test_core_wc_structured_data_kept_when_seo_plugin_owns_product_schema() {
@@ -325,6 +353,10 @@ class ProductSchemaTest extends WP_UnitTestCase {
 	private function count_product_nodes_on_page( \WC_Product $p ): int {
 		$this->go_to( get_permalink( $p->get_id() ) );
 		$GLOBALS['product'] = $p;
+		$this->standalone_reviews = 0;
+		foreach ( get_comments( array( 'post_id' => $p->get_id(), 'type' => 'review' ) ) as $c ) {
+			WC()->structured_data->generate_review_data( $c ); // jak przy renderze opinii
+		}
 		ob_start();
 		do_action( 'woocommerce_single_product_summary' );
 		do_action( 'wp_head' );
@@ -336,6 +368,9 @@ class ProductSchemaTest extends WP_UnitTestCase {
 			$data = json_decode( $json, true );
 			// Warianty (hasVariant) są zagnieżdżone — liczymy tylko węzły najwyższego poziomu.
 			foreach ( isset( $data['@graph'] ) ? $data['@graph'] : array( $data ) as $node ) {
+				if ( isset( $node['@type'] ) && 'Review' === $node['@type'] ) {
+					$this->standalone_reviews++;
+				}
 				if ( isset( $node['@type'] ) && in_array( $node['@type'], array( 'Product', 'ProductGroup' ), true ) ) {
 					$count++;
 				}

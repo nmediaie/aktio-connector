@@ -10,6 +10,7 @@
 namespace AktioConnector\Schema;
 
 use AktioConnector\Detector;
+use AktioConnector\Settings;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -21,13 +22,21 @@ class ProductSchema {
 	/** Maksymalna liczba wariantów w ProductGroup (rozmiar strony). */
 	const MAX_VARIANTS = 50;
 
+	/** Dostawa wyliczona ze strefy raz na węzeł (null = jeszcze nie liczona). */
+	private static $zone_shipping = null;
+
+	/** Licznik odczytów stref wysyłki (szew dla testów). */
+	public static $zone_lookups = 0;
+
 	public static function register(): void {
 		// Priorytet 20: po ContentSchema (10), żeby produkt mógł wskazać istniejący WebPage.
 		add_filter( Graph::FILTER, array( __CLASS__, 'add_nodes' ), 20 );
 		add_filter( 'woocommerce_structured_data_product', array( __CLASS__, 'suppress_core_product' ) );
+		add_filter( 'woocommerce_structured_data_review', array( __CLASS__, 'suppress_core_product' ) );
 	}
 
 	/**
+	 * Dotyczy też osobnych węzłów Review rdzenia (opinie są zagnieżdżone w produkcie).
 	 * Pusta tablica sprawia, że WC_Structured_Data::set_data() odrzuca węzeł (brak @type).
 	 */
 	public static function suppress_core_product( $markup ) {
@@ -67,7 +76,8 @@ class ProductSchema {
 	 * Węzeł Product (albo ProductGroup dla produktu zmiennego).
 	 */
 	public static function node( \WC_Product $p ): array {
-		$url      = (string) get_permalink( $p->get_id() );
+		self::$zone_shipping = null;
+		$url                 = (string) get_permalink( $p->get_id() );
 		$variable = $p->is_type( 'variable' );
 
 		$node = array(
@@ -213,7 +223,7 @@ class ProductSchema {
 			'price'         => number_format( $price, wc_get_price_decimals(), '.', '' ),
 			'priceCurrency' => get_woocommerce_currency(),
 			'availability'  => self::availability( $p ),
-			'seller'        => array( '@id' => home_url( '/#organization' ) ),
+			'seller'        => self::seller(),
 		);
 		if ( $p->is_on_sale() && $p->get_date_on_sale_to() ) {
 			$offer['priceValidUntil'] = $p->get_date_on_sale_to()->date( 'Y-m-d' );
@@ -223,6 +233,21 @@ class ProductSchema {
 			$offer['shippingDetails'] = $shipping;
 		}
 		return $offer;
+	}
+
+	/**
+	 * Referencja do węzła Organization Aktio albo, gdy węzła nie ma (treść zapewnia
+	 * wtyczka SEO), sprzedawca inline — inaczej @id wisiałoby w próżni.
+	 */
+	private static function seller(): array {
+		if ( Detector::owns( 'content_schema' ) ) {
+			return array( '@id' => home_url( '/#organization' ) );
+		}
+		$name = Settings::get()['company']['name'];
+		return array(
+			'@type' => 'Organization',
+			'name'  => Graph::plain( '' !== $name ? $name : get_bloginfo( 'name' ), 150 ),
+		);
 	}
 
 	private static function availability( \WC_Product $p ): string {
@@ -244,6 +269,17 @@ class ProductSchema {
 		if ( $p->is_virtual() || ! class_exists( '\WC_Shipping_Zones' ) ) {
 			return array();
 		}
+		if ( null === self::$zone_shipping ) {
+			self::$zone_shipping = self::zone_shipping();
+		}
+		return self::$zone_shipping;
+	}
+
+	/**
+	 * Część zależna tylko od stref wysyłki (liczona raz na węzeł produktu).
+	 */
+	private static function zone_shipping(): array {
+		++self::$zone_lookups;
 		$zones = \WC_Shipping_Zones::get_zones();
 		if ( 1 !== count( $zones ) ) {
 			return array();
@@ -326,7 +362,7 @@ class ProductSchema {
 					'@type' => 'Person',
 					'name'  => Graph::plain( '' !== $c->comment_author ? $c->comment_author : __( 'Anonymous', 'aktio-connector' ), 100 ),
 				),
-				'datePublished' => mysql2date( 'c', $c->comment_date_gmt, false ),
+				'datePublished' => get_comment_date( 'c', $c ),
 				'reviewRating' => array(
 					'@type'       => 'Rating',
 					'ratingValue' => $stars,
