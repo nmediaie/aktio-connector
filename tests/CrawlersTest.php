@@ -101,6 +101,8 @@ class CrawlersTest extends WP_UnitTestCase {
 	}
 
 	public function test_llms_lists_site_description_pages_and_products() {
+		// Nagłówki sekcji zależą od języka witryny: pl_* -> polskie.
+		add_filter( 'locale', array( $this, 'polish_locale' ) );
 		Settings::update( array( 'company' => array( 'name' => 'Sklep Testowy' ) ) );
 		update_option( 'blogdescription', 'Najlepszy <b>sklep</b>' );
 		$about = self::factory()->post->create( array( 'post_type' => 'page', 'post_title' => 'O nas [PL]' ) );
@@ -132,6 +134,23 @@ class CrawlersTest extends WP_UnitTestCase {
 		$this->assertStringNotContainsString( 'Ukryty', $out );
 		$this->assertStringNotContainsString( '[Szkic]', $out );
 		$this->assertStringNotContainsString( '<', $out );
+	}
+
+	public function polish_locale() {
+		return 'pl_PL';
+	}
+
+	public function test_llms_section_headings_are_english_for_non_polish_locale() {
+		self::factory()->post->create( array( 'post_type' => 'page', 'post_title' => 'About' ) );
+		self::factory()->post->create( array( 'post_title' => 'Hello' ) );
+		$this->simple( 'Mug', '19.9' );
+
+		$out = Crawlers::llms();
+
+		$this->assertStringContainsString( "## Pages\n", $out );
+		$this->assertStringContainsString( "## Posts\n", $out );
+		$this->assertStringContainsString( "## Products\n", $out );
+		$this->assertStringNotContainsString( '## Strony', $out );
 	}
 
 	public function test_llms_caches_and_clears_on_save_post_and_settings_update() {

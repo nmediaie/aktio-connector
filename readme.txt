@@ -56,7 +56,7 @@ The AI bot block is appended at the end of robots.txt. If the SEO plugin already
 
 = Are updates performed without my knowledge? =
 
-No. Updates over REST are performed only by an authenticated user with the right capabilities, and each one is written to the log in the settings. The plugin does not enable automatic updates on its own and does not roll changes back automatically, so make a backup before updating.
+No. Updates over REST are performed only by an authenticated user with the right capabilities, and each one is written to the log in the settings. The plugin never turns on automatic updates by itself: automatic updates are changed only by an authorized user, including Aktio over REST with the site owner's consent. The plugin does not roll changes back automatically, so make a backup before updating.
 
 = Can I block AI bots? =
 

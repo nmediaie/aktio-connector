@@ -1,0 +1,262 @@
+# Copyright (C) 2026 NM Media
+# This file is distributed under the GPL-2.0-or-later.
+msgid ""
+msgstr ""
+"Project-Id-Version: Aktio Connector 0.1.0\n"
+"Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/aktio-connector\n"
+"Last-Translator: NM Media\n"
+"Language-Team: Polish\n"
+"Language: pl_PL\n"
+"Plural-Forms: nplurals=3; plural=(n==1 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"POT-Creation-Date: 2026-10-22T22:24:45+00:00\n"
+"PO-Revision-Date: 2026-10-22 22:30+0000\n"
+"X-Generator: WP-CLI 2.12.0\n"
+"X-Domain: aktio-connector\n"
+
+#. Plugin Name of the plugin
+#: aktio-connector.php
+#: includes/Admin/SettingsPage.php:31
+#: includes/Admin/SettingsPage.php:32
+#: includes/Admin/SettingsPage.php:87
+msgid "Aktio Connector"
+msgstr "Aktio Connector"
+
+#. Description of the plugin
+#: aktio-connector.php
+msgid "Schema.org, robots.txt and llms.txt for AI bots, Site Health and updates over REST — standalone or with Aktio."
+msgstr "Schema.org, robots.txt i llms.txt dla botów AI, Site Health i aktualizacje przez REST — samodzielnie lub z Aktio."
+
+#. Author of the plugin
+#: aktio-connector.php
+msgid "NM Media"
+msgstr "NM Media"
+
+#: includes/Admin/SettingsPage.php:41
+msgid "Settings"
+msgstr "Ustawienia"
+
+#: includes/Admin/SettingsPage.php:51
+msgid "You are not allowed to change these settings."
+msgstr "Brak uprawnień do zmiany tych ustawień."
+
+#: includes/Admin/SettingsPage.php:89
+msgid "Settings saved."
+msgstr "Ustawienia zapisane."
+
+#: includes/Admin/SettingsPage.php:91
+msgid "Connection to Aktio: this plugin works on its own; Aktio uses it through an application password."
+msgstr "Połączenie z Aktio: ta wtyczka działa samodzielnie; Aktio korzysta z niej przez hasło aplikacji."
+
+#: includes/Admin/SettingsPage.php:97
+msgid "Company"
+msgstr "Firma"
+
+#: includes/Admin/SettingsPage.php:98
+msgid "This data goes into schema.org markup (Organization or LocalBusiness). An empty name means the site title."
+msgstr "Dane trafiają do schema.org (Organization lub LocalBusiness). Puste pole nazwy oznacza nazwę witryny."
+
+#: includes/Admin/SettingsPage.php:100
+msgid "Company name"
+msgstr "Nazwa firmy"
+
+#: includes/Admin/SettingsPage.php:101
+msgid "Type"
+msgstr "Typ"
+
+#: includes/Admin/SettingsPage.php:107
+msgid "Logo URL"
+msgstr "Adres URL logo"
+
+#: includes/Admin/SettingsPage.php:108
+msgid "Phone"
+msgstr "Telefon"
+
+#: includes/Admin/SettingsPage.php:109
+msgid "Email"
+msgstr "E-mail"
+
+#: includes/Admin/SettingsPage.php:110
+msgid "Street and number"
+msgstr "Ulica i numer"
+
+#: includes/Admin/SettingsPage.php:111
+msgid "City"
+msgstr "Miasto"
+
+#: includes/Admin/SettingsPage.php:112
+msgid "Postal code"
+msgstr "Kod pocztowy"
+
+#: includes/Admin/SettingsPage.php:113
+msgid "Country"
+msgstr "Kraj"
+
+#: includes/Admin/SettingsPage.php:114
+msgid "Social profiles (sameAs)"
+msgstr "Profile w sieci (sameAs)"
+
+#: includes/Admin/SettingsPage.php:116
+msgid "One URL per line, up to 10."
+msgstr "Jeden adres URL w wierszu, maksymalnie 10."
+
+#: includes/Admin/SettingsPage.php:119
+msgid "AI bots in robots.txt"
+msgstr "Boty AI w robots.txt"
+
+#: includes/Admin/SettingsPage.php:126
+msgid "Allow"
+msgstr "Dopuść"
+
+#: includes/Admin/SettingsPage.php:127
+msgid "Block"
+msgstr "Zablokuj"
+
+#: includes/Admin/SettingsPage.php:132
+msgid "Save changes"
+msgstr "Zapisz zmiany"
+
+#: includes/Admin/SettingsPage.php:149
+msgid "Content schema"
+msgstr "Schema treści"
+
+#: includes/Admin/SettingsPage.php:150
+msgid "Product schema"
+msgstr "Schema produktów"
+
+#: includes/Admin/SettingsPage.php:151
+msgid "robots.txt"
+msgstr "robots.txt"
+
+#: includes/Admin/SettingsPage.php:152
+msgid "llms.txt"
+msgstr "llms.txt"
+
+#: includes/Admin/SettingsPage.php:156
+msgid "Feature status"
+msgstr "Stan funkcji"
+
+#. translators: %s: feature name, e.g. robots.txt
+#: includes/Admin/SettingsPage.php:164
+#, php-format
+msgid "%s comes from a physical file in the site directory — Aktio Connector does not duplicate it."
+msgstr "%s pochodzi z fizycznego pliku w katalogu witryny — Aktio Connector go nie dubluje."
+
+#. translators: 1: feature name, 2: plugin name
+#: includes/Admin/SettingsPage.php:167
+#, php-format
+msgid "%1$s is provided by %2$s — Aktio Connector does not duplicate it."
+msgstr "%1$s dostarcza %2$s — Aktio Connector go nie dubluje."
+
+#: includes/Admin/SettingsPage.php:170
+msgid "Unavailable (requires WooCommerce)."
+msgstr "Niedostępne (wymaga WooCommerce)."
+
+#: includes/Admin/SettingsPage.php:172
+msgid "Active — provided by Aktio Connector."
+msgstr "Aktywne — dostarcza Aktio Connector."
+
+#. translators: %s: list of SEO plugin names
+#: includes/Admin/SettingsPage.php:182
+#, php-format
+msgid "Detected active SEO plugins: %s."
+msgstr "Wykryte aktywne wtyczki SEO: %s."
+
+#: includes/Admin/SettingsPage.php:189
+msgid "Update log"
+msgstr "Dziennik aktualizacji"
+
+#: includes/Admin/SettingsPage.php:191
+msgid "No entries."
+msgstr "Brak wpisów."
+
+#: includes/Admin/SettingsPage.php:195
+msgid "Date (UTC)"
+msgstr "Data (UTC)"
+
+#: includes/Admin/SettingsPage.php:195
+msgid "Item"
+msgstr "Element"
+
+#: includes/Admin/SettingsPage.php:195
+msgid "Version"
+msgstr "Wersja"
+
+#: includes/Admin/SettingsPage.php:195
+msgid "Result"
+msgstr "Wynik"
+
+#: includes/Admin/SettingsPage.php:195
+msgid "By"
+msgstr "Przez"
+
+#: includes/Rest.php:100
+#: includes/Rest.php:227
+msgid "You are not allowed to perform this operation."
+msgstr "Brak uprawnień do tej operacji."
+
+#: includes/Rest.php:141
+msgid "The request body must be a JSON object."
+msgstr "Body musi być obiektem JSON."
+
+#. translators: %s: nazwa pola
+#: includes/Rest.php:146
+#, php-format
+msgid "The %s field must be an object."
+msgstr "Pole %s musi być obiektem."
+
+#: includes/Rest.php:172
+#: includes/Rest.php:197
+msgid "The item field (string) is required."
+msgstr "Pole item (tekst) jest wymagane."
+
+#: includes/Rest.php:191
+msgid "Invalid types for the item/enabled/core_level fields."
+msgstr "Nieprawidłowe typy pól item/enabled/core_level."
+
+#: includes/Rest.php:222
+#: includes/Updates.php:467
+msgid "type must be one of: core, plugin, theme."
+msgstr "type musi być jednym z: core, plugin, theme."
+
+#: includes/Schema/ProductSchema.php:363
+msgid "Anonymous"
+msgstr "Anonim"
+
+#: includes/Updates.php:122
+msgid "WordPress cannot write files on this server. Updating requires direct file access or FTP/SSH credentials in wp-config.php (FS_METHOD, FTP_HOST, FTP_USER, FTP_PASS)."
+msgstr "WordPress nie może zapisywać plików na serwerze. Aktualizacja wymaga zapisu bezpośredniego albo danych FTP/SSH w wp-config.php (FS_METHOD, FTP_HOST, FTP_USER, FTP_PASS)."
+
+#: includes/Updates.php:157
+msgid "The update failed."
+msgstr "Aktualizacja nie powiodła się."
+
+#: includes/Updates.php:201
+msgid "core_level must be one of: minor, all, off."
+msgstr "core_level musi być jednym z: minor, all, off."
+
+#: includes/Updates.php:218
+msgid "The enabled field (true/false) is required."
+msgstr "Pole enabled (true/false) jest wymagane."
+
+#: includes/Updates.php:224
+msgid "Automatic plugin updates are disabled on this site (by a filter or a configuration constant)."
+msgstr "Automatyczne aktualizacje wtyczek są na tej stronie wyłączone (filtr lub stała w konfiguracji)."
+
+#: includes/Updates.php:225
+msgid "Automatic theme updates are disabled on this site (by a filter or a configuration constant)."
+msgstr "Automatyczne aktualizacje motywów są na tej stronie wyłączone (filtr lub stała w konfiguracji)."
+
+#: includes/Updates.php:436
+msgid "Invalid plugin identifier."
+msgstr "Nieprawidłowy identyfikator wtyczki."
+
+#: includes/Updates.php:453
+msgid "Invalid theme identifier."
+msgstr "Nieprawidłowy identyfikator motywu."
+
+#: includes/Updates.php:649
+msgid "No such item was found on this site."
+msgstr "Nie znaleziono takiego elementu na stronie."

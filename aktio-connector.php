@@ -9,6 +9,7 @@
  * License:           GPL-2.0-or-later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain:       aktio-connector
+ * Domain Path:       /languages
  *
  * @package AktioConnector
  */
@@ -39,6 +40,13 @@ require_once __DIR__ . '/includes/Admin/SettingsPage.php';
 if ( is_admin() ) {
 	\AktioConnector\Admin\SettingsPage::register();
 }
+
+add_action(
+	'init',
+	function () {
+		load_plugin_textdomain( 'aktio-connector', false, dirname( plugin_basename( AKTIO_CONNECTOR_FILE ) ) . '/languages' );
+	}
+);
 
 register_activation_hook( __FILE__, array( '\\AktioConnector\\Crawlers', 'activate' ) );
 register_deactivation_hook( __FILE__, array( '\\AktioConnector\\Crawlers', 'deactivate' ) );

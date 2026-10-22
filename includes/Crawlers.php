@@ -154,10 +154,12 @@ class Crawlers {
 			$out .= "\n> " . $desc . "\n";
 		}
 
-		$out .= self::section( 'Strony', self::post_lines( 'page', 50, array( 'menu_order' => 'ASC', 'title' => 'ASC' ) ) );
-		$out .= self::section( 'Wpisy', self::post_lines( 'post', 10, array( 'date' => 'DESC' ) ) );
+		// Nagłówki llms.txt czyta maszyna: zależą od języka witryny (get_locale), nie od tłumaczenia panelu.
+		$pl   = 0 === strpos( get_locale(), 'pl' );
+		$out .= self::section( $pl ? 'Strony' : 'Pages', self::post_lines( 'page', 50, array( 'menu_order' => 'ASC', 'title' => 'ASC' ) ) );
+		$out .= self::section( $pl ? 'Wpisy' : 'Posts', self::post_lines( 'post', 10, array( 'date' => 'DESC' ) ) );
 		if ( class_exists( 'WooCommerce' ) && function_exists( 'wc_get_product' ) ) {
-			$out .= self::section( 'Produkty', self::product_lines() );
+			$out .= self::section( $pl ? 'Produkty' : 'Products', self::product_lines() );
 		}
 
 		set_transient( self::TRANSIENT, $out, HOUR_IN_SECONDS );

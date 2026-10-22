@@ -132,7 +132,24 @@ class SettingsPageTest extends WP_UnitTestCase {
 		$this->dirs[] = $dir;
 		file_put_contents( $dir . '/wp-seo.php', "<?php\n/*\nPlugin Name: Yoast SEO\n*/\n" );
 		$this->active[] = 'wordpress-seo/wp-seo.php';
-		$this->assertStringContainsString( 'Schema treści dostarcza Yoast SEO — Aktio Connector go nie dubluje', $this->html() );
+		$this->assertStringContainsString( 'Content schema is provided by Yoast SEO — Aktio Connector does not duplicate it', $this->html() );
+	}
+
+	public function test_polish_translation_restores_original_alert_text() {
+		$dir = WP_PLUGIN_DIR . '/wordpress-seo';
+		mkdir( $dir, 0777, true );
+		$this->dirs[] = $dir;
+		file_put_contents( $dir . '/wp-seo.php', "<?php\n/*\nPlugin Name: Yoast SEO\n*/\n" );
+		$this->active[] = 'wordpress-seo/wp-seo.php';
+
+		$this->assertTrue( load_textdomain( 'aktio-connector', dirname( __DIR__ ) . '/languages/aktio-connector-pl_PL.mo' ) );
+		try {
+			$html = $this->html();
+		} finally {
+			unload_textdomain( 'aktio-connector' );
+		}
+		$this->assertStringContainsString( 'Schema treści dostarcza Yoast SEO — Aktio Connector go nie dubluje', $html );
+		$this->assertStringContainsString( 'Aktio korzysta z niej przez hasło aplikacji', $html );
 	}
 
 	public function test_page_shows_update_log_read_only() {
@@ -155,7 +172,7 @@ class SettingsPageTest extends WP_UnitTestCase {
 		$html = $this->html();
 		$this->assertStringContainsString( 'Akismet &lt;i&gt;Anti-spam&lt;/i&gt;', $html );
 		$this->assertStringContainsString( '5.1', $html );
-		$this->assertStringContainsString( 'Aktio korzysta z niej przez hasło aplikacji', $html );
+		$this->assertStringContainsString( 'Aktio uses it through an application password', $html );
 	}
 
 	public function test_all_output_escaped() {

@@ -119,7 +119,7 @@ class Updates {
 		if ( ! self::filesystem_ready() ) {
 			return new \WP_Error(
 				'aktio_fs_unavailable',
-				__( 'WordPress nie może zapisywać plików na serwerze. Aktualizacja wymaga zapisu bezpośredniego albo danych FTP/SSH w wp-config.php (FS_METHOD, FTP_HOST, FTP_USER, FTP_PASS).', 'aktio-connector' ),
+				__( 'WordPress cannot write files on this server. Updating requires direct file access or FTP/SSH credentials in wp-config.php (FS_METHOD, FTP_HOST, FTP_USER, FTP_PASS).', 'aktio-connector' ),
 				array( 'status' => 500 )
 			);
 		}
@@ -154,7 +154,7 @@ class Updates {
 		} elseif ( is_wp_error( $raw ) ) {
 			$error = $raw->get_error_message();
 		} elseif ( ! $ok ) {
-			$error = __( 'Aktualizacja nie powiodła się.', 'aktio-connector' );
+			$error = __( 'The update failed.', 'aktio-connector' );
 		}
 
 		// Odpowiedź liczona z danych zebranych przed aktualizacją (także dla samej wtyczki Aktio).
@@ -198,7 +198,7 @@ class Updates {
 		self::load_admin_includes();
 		if ( 'core' === $type ) {
 			if ( null === $core_level || ! in_array( $core_level, self::CORE_LEVELS, true ) ) {
-				return self::invalid( __( 'core_level musi być jednym z: minor, all, off.', 'aktio-connector' ) );
+				return self::invalid( __( 'core_level must be one of: minor, all, off.', 'aktio-connector' ) );
 			}
 			update_option( self::CORE_AUTO_OPTION, $core_level, false );
 			$effective = self::core_level(); // Np. 'off', gdy updater WP jest wyłączony.
@@ -215,14 +215,14 @@ class Updates {
 			return $target;
 		}
 		if ( null === $enabled ) {
-			return self::invalid( __( 'Pole enabled (true/false) jest wymagane.', 'aktio-connector' ) );
+			return self::invalid( __( 'The enabled field (true/false) is required.', 'aktio-connector' ) );
 		}
 
 		if ( ! wp_is_auto_update_enabled_for_type( $type ) ) {
 			return self::invalid(
 				'plugin' === $type
-					? __( 'Automatyczne aktualizacje wtyczek są na tej stronie wyłączone (filtr lub stała w konfiguracji).', 'aktio-connector' )
-					: __( 'Automatyczne aktualizacje motywów są na tej stronie wyłączone (filtr lub stała w konfiguracji).', 'aktio-connector' )
+					? __( 'Automatic plugin updates are disabled on this site (by a filter or a configuration constant).', 'aktio-connector' )
+					: __( 'Automatic theme updates are disabled on this site (by a filter or a configuration constant).', 'aktio-connector' )
 			);
 		}
 
@@ -433,7 +433,7 @@ class Updates {
 		}
 		if ( 'plugin' === $type ) {
 			if ( ! preg_match( self::PLUGIN_RE, $item ) ) {
-				return self::invalid( __( 'Nieprawidłowy identyfikator wtyczki.', 'aktio-connector' ) );
+				return self::invalid( __( 'Invalid plugin identifier.', 'aktio-connector' ) );
 			}
 			$ids = self::plugin_ids();
 			if ( ! isset( $ids[ $item ] ) ) {
@@ -450,7 +450,7 @@ class Updates {
 		}
 		if ( 'theme' === $type ) {
 			if ( ! preg_match( self::THEME_RE, $item ) ) {
-				return self::invalid( __( 'Nieprawidłowy identyfikator motywu.', 'aktio-connector' ) );
+				return self::invalid( __( 'Invalid theme identifier.', 'aktio-connector' ) );
 			}
 			if ( ! array_key_exists( $item, wp_get_themes() ) ) {
 				return self::not_found();
@@ -464,7 +464,7 @@ class Updates {
 				'available' => $row['available'],
 			);
 		}
-		return self::invalid( __( 'type musi być jednym z: core, plugin, theme.', 'aktio-connector' ) );
+		return self::invalid( __( 'type must be one of: core, plugin, theme.', 'aktio-connector' ) );
 	}
 
 	/** Mapa identyfikator (plik bez .php) => plik wtyczki, wyłącznie z get_plugins(). */
@@ -646,6 +646,6 @@ class Updates {
 	}
 
 	private static function not_found(): \WP_Error {
-		return new \WP_Error( 'aktio_not_found', __( 'Nie znaleziono takiego elementu na stronie.', 'aktio-connector' ), array( 'status' => 404 ) );
+		return new \WP_Error( 'aktio_not_found', __( 'No such item was found on this site.', 'aktio-connector' ), array( 'status' => 404 ) );
 	}
 }

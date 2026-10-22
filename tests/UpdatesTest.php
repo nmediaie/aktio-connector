@@ -472,7 +472,7 @@ class UpdatesTest extends WP_UnitTestCase {
 		$r = Updates::set_auto( 'plugin', 'hello', true, null );
 		$this->assertWPError( $r );
 		$this->assertSame( 'aktio_invalid_params', $r->get_error_code() );
-		$this->assertStringContainsString( 'wyłączone', $r->get_error_message() );
+		$this->assertStringContainsString( 'disabled', $r->get_error_message() );
 		$this->assertFalse( get_site_option( 'auto_update_plugins' ) );
 		$this->assertSame( 400, $this->request( 'POST', '/auto-updates', array( 'type' => 'plugin', 'item' => 'hello', 'enabled' => true ) )->get_status() );
 

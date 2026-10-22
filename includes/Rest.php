@@ -97,7 +97,7 @@ class Rest {
 			}
 			return new \WP_Error(
 				'rest_forbidden',
-				__( 'Brak uprawnień do tej operacji.', 'aktio-connector' ),
+				__( 'You are not allowed to perform this operation.', 'aktio-connector' ),
 				array( 'status' => rest_authorization_required_code() )
 			);
 		};
@@ -138,12 +138,12 @@ class Rest {
 		// Obiekt JSON = tablica asocjacyjna (pusta `{}` też przechodzi; lista `[1,2]` nie).
 		$is_object = is_array( $body ) && ( array() === $body || array_keys( $body ) !== range( 0, count( $body ) - 1 ) );
 		if ( ! $is_object ) {
-			return self::invalid_params( __( 'Body musi być obiektem JSON.', 'aktio-connector' ) );
+			return self::invalid_params( __( 'The request body must be a JSON object.', 'aktio-connector' ) );
 		}
 		foreach ( array( 'company', 'bots' ) as $key ) {
 			if ( array_key_exists( $key, $body ) && ! is_array( $body[ $key ] ) ) {
 				/* translators: %s: nazwa pola */
-				return self::invalid_params( sprintf( __( 'Pole %s musi być obiektem.', 'aktio-connector' ), $key ) );
+				return self::invalid_params( sprintf( __( 'The %s field must be an object.', 'aktio-connector' ), $key ) );
 			}
 		}
 		Settings::update( array_intersect_key( $body, array_flip( array( 'company', 'bots' ) ) ) );
@@ -169,7 +169,7 @@ class Rest {
 		if ( 'core' === $body['type'] ) {
 			$item = 'core';
 		} elseif ( ! is_string( $item ) ) {
-			return self::invalid_params( __( 'Pole item (tekst) jest wymagane.', 'aktio-connector' ) );
+			return self::invalid_params( __( 'The item field (string) is required.', 'aktio-connector' ) );
 		}
 		$result = Updates::apply( $body['type'], $item, 'aktio' );
 		return is_wp_error( $result ) ? $result : rest_ensure_response( $result );
@@ -188,13 +188,13 @@ class Rest {
 		$enabled    = $body['enabled'] ?? null;
 		$core_level = $body['core_level'] ?? null;
 		if ( ( null !== $item && ! is_string( $item ) ) || ( null !== $enabled && ! is_bool( $enabled ) ) || ( null !== $core_level && ! is_string( $core_level ) ) ) {
-			return self::invalid_params( __( 'Nieprawidłowe typy pól item/enabled/core_level.', 'aktio-connector' ) );
+			return self::invalid_params( __( 'Invalid types for the item/enabled/core_level fields.', 'aktio-connector' ) );
 		}
 		if ( 'core' === $body['type'] ) {
 			$item    = null;
 			$enabled = null;
 		} elseif ( null === $item ) {
-			return self::invalid_params( __( 'Pole item (tekst) jest wymagane.', 'aktio-connector' ) );
+			return self::invalid_params( __( 'The item field (string) is required.', 'aktio-connector' ) );
 		}
 		$result = Updates::set_auto( $body['type'], $item, $enabled, 'core' === $body['type'] ? $core_level : null );
 		return is_wp_error( $result ) ? $result : rest_ensure_response( $result );
@@ -219,12 +219,12 @@ class Rest {
 		);
 		$type = $body['type'] ?? null;
 		if ( ! is_string( $type ) || ! isset( $caps[ $type ] ) ) {
-			return self::invalid_params( __( 'type musi być jednym z: core, plugin, theme.', 'aktio-connector' ) );
+			return self::invalid_params( __( 'type must be one of: core, plugin, theme.', 'aktio-connector' ) );
 		}
 		if ( ! current_user_can( $caps[ $type ] ) ) {
 			return new \WP_Error(
 				'rest_forbidden',
-				__( 'Brak uprawnień do tej operacji.', 'aktio-connector' ),
+				__( 'You are not allowed to perform this operation.', 'aktio-connector' ),
 				array( 'status' => rest_authorization_required_code() )
 			);
 		}
