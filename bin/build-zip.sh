@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Buduje dist/aktio-connector.zip: katalog aktio-connector/ bez tests/, bin/, .github/, vendor/ itp.
+# Buduje dist/aktio-connector-<wersja>.zip z zatwierdzonego HEAD (git archive).
+# Wykluczenia (tests/, bin/, vendor/ itd.) są w .gitattributes (export-ignore).
+# Wymaga tylko git — bez rsync/zip. Wersja z nagłówka aktio-connector.php.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-rm -rf dist && mkdir -p dist/aktio-connector
-rsync -a \
-  --exclude '.git' --exclude '.github' --exclude 'tests' --exclude 'bin' \
-  --exclude 'vendor' --exclude 'node_modules' --exclude 'dist' \
-  --exclude '.wp-env.json' --exclude 'phpunit.xml.dist' --exclude 'composer.*' \
-  --exclude 'package*.json' --exclude '.gitignore' --exclude '.phpunit.result.cache' \
-  ./ dist/aktio-connector/
-(cd dist && zip -qr aktio-connector.zip aktio-connector)
-echo "dist/aktio-connector.zip"
+version="$(sed -n 's/^ \* Version:[[:space:]]*//p' aktio-connector.php | head -1 | tr -d '[:space:]')"
+[ -n "$version" ] || { echo "Nie znaleziono wersji w aktio-connector.php" >&2; exit 1; }
+out="dist/aktio-connector-${version}.zip"
+mkdir -p dist
+rm -f "$out"
+git archive --format=zip --prefix=aktio-connector/ -o "$out" HEAD
+echo "$out"

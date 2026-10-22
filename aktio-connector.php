@@ -28,6 +28,7 @@ require_once __DIR__ . '/includes/Schema/ContentSchema.php';
 require_once __DIR__ . '/includes/Schema/ProductSchema.php';
 require_once __DIR__ . '/includes/Crawlers.php';
 require_once __DIR__ . '/includes/Health.php';
+require_once __DIR__ . '/includes/Admin/SettingsPage.php';
 
 \AktioConnector\Rest::register();
 \AktioConnector\Schema\Graph::register();
@@ -35,6 +36,9 @@ require_once __DIR__ . '/includes/Health.php';
 \AktioConnector\Schema\ProductSchema::register();
 \AktioConnector\Crawlers::register();
 \AktioConnector\Updates::register();
+if ( is_admin() ) {
+	\AktioConnector\Admin\SettingsPage::register();
+}
 
 register_activation_hook( __FILE__, array( '\\AktioConnector\\Crawlers', 'activate' ) );
 register_deactivation_hook( __FILE__, array( '\\AktioConnector\\Crawlers', 'deactivate' ) );

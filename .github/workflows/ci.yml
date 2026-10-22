@@ -29,4 +29,4 @@ jobs:
       - run: bin/build-zip.sh
       - uses: softprops/action-gh-release@v2
         with:
-          files: dist/aktio-connector.zip
+          files: dist/aktio-connector-*.zip
