@@ -15,7 +15,15 @@ class Detector {
 	const FEATURES = array( 'content_schema', 'product_schema', 'robots', 'llms' );
 
 	/**
-	 * Stan czterech funkcji: active (dostarcza Aktio), provided (dostarcza
+	 * Funkcje, w których wtyczka SEO nie wyklucza Aktio: robots.txt generowany
+	 * przez wtyczkę dostaje tylko dopisane reguły blokujące (R14), więc stan
+	 * zostaje `active`, a `provided_by` wskazuje autora pliku.
+	 */
+	const SHARED = array( 'robots' );
+
+	/**
+	 * Stan czterech funkcji: active (dostarcza Aktio; przy robots z wtyczki SEO
+	 * `provided_by` = jej nazwa, Aktio tylko dopisuje), provided (dostarcza
 	 * wtyczka lub plik), off (niedostępne — product_schema bez WooCommerce).
 	 */
 	public static function features(): array {
@@ -40,12 +48,12 @@ class Detector {
 				continue;
 			}
 			foreach ( self::FEATURES as $feature ) {
-				if ( 'off' === $result[ $feature ]['state'] || 'provided' === $result[ $feature ]['state'] ) {
+				if ( 'off' === $result[ $feature ]['state'] || null !== $result[ $feature ]['provided_by'] ) {
 					continue;
 				}
 				if ( self::provides( $entry, $feature ) ) {
 					$result[ $feature ] = array(
-						'state'       => 'provided',
+						'state'       => in_array( $feature, self::SHARED, true ) ? 'active' : 'provided',
 						'provided_by' => self::plugin_name( $file, $entry['name'] ),
 					);
 				}

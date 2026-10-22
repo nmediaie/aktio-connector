@@ -62,7 +62,9 @@ class DetectorTest extends WP_UnitTestCase {
 		$this->plugin( 'wordpress-seo/wp-seo.php', 'Yoast SEO' );
 		$f = Detector::features();
 		$this->assertSame( array( 'state' => 'provided', 'provided_by' => 'Yoast SEO' ), $f['content_schema'] );
-		$this->assertSame( 'provided', $f['robots']['state'] );
+		// R14: robots.txt generuje Yoast, Aktio dopisuje tylko reguły blokujące.
+		$this->assertSame( array( 'state' => 'active', 'provided_by' => 'Yoast SEO' ), $f['robots'] );
+		$this->assertTrue( Detector::owns( 'robots' ) );
 		$this->assertSame( 'active', $f['llms']['state'] );
 		$this->assertSame( 'active', $f['product_schema']['state'] );
 		$this->assertFalse( Detector::owns( 'content_schema' ) );
@@ -119,6 +121,21 @@ class DetectorTest extends WP_UnitTestCase {
 		$this->assertSame( array( 'state' => 'off', 'provided_by' => null ), Detector::features()['product_schema'] );
 	}
 
+	public function test_every_seo_plugin_robots_is_active_with_provided_by() {
+		$plugins = array(
+			'wordpress-seo/wp-seo.php'                    => 'Yoast SEO',
+			'seo-by-rank-math/rank-math.php'              => 'Rank Math SEO',
+			'wp-seopress/seopress.php'                    => 'SEOPress',
+			'all-in-one-seo-pack/all_in_one_seo_pack.php' => 'All in One SEO',
+			'autodescription/autodescription.php'         => 'The SEO Framework',
+		);
+		foreach ( $plugins as $file => $name ) {
+			$this->active = array();
+			$this->plugin( $file, $name );
+			$this->assertSame( array( 'state' => 'active', 'provided_by' => $name ), Detector::features()['robots'], $name );
+		}
+	}
+
 	public function test_map_is_filterable() {
 		add_filter(
 			'aktio_connector_seo_map',
@@ -132,7 +149,7 @@ class DetectorTest extends WP_UnitTestCase {
 			}
 		);
 		$this->plugin( 'moja-seo/moja.php', 'Moja SEO' );
-		$this->assertSame( 'Moja SEO', Detector::features()['robots']['provided_by'] );
+		$this->assertSame( array( 'state' => 'active', 'provided_by' => 'Moja SEO' ), Detector::features()['robots'] );
 		remove_all_filters( 'aktio_connector_seo_map' );
 	}
 }

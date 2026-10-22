@@ -56,25 +56,45 @@ class CrawlersTest extends WP_UnitTestCase {
 		$this->active[] = $file;
 	}
 
-	public function test_robots_appends_one_block_per_bot() {
+	public function test_robots_default_all_allowed_leaves_output_unchanged() {
+		$base = "User-agent: *\nDisallow: /wp-admin/\n";
+		$this->assertSame( $base, Crawlers::robots( $base, true ) );
+	}
+
+	public function test_robots_only_blocked_bot_gets_disallow_group() {
 		Settings::update( array( 'bots' => array( 'ClaudeBot' => 'block' ) ) );
 		$out = Crawlers::robots( "User-agent: *\nDisallow: /wp-admin/\n", true );
 
-		$this->assertStringStartsWith( "User-agent: *\nDisallow: /wp-admin/\n", $out );
-		$this->assertStringContainsString( "# BEGIN Aktio Connector\n", $out );
-		$this->assertStringContainsString( "# END Aktio Connector\n", $out );
-		$this->assertStringContainsString( "User-agent: GPTBot\nAllow: /", $out );
-		$this->assertStringContainsString( "User-agent: ClaudeBot\nDisallow: /", $out );
+		$this->assertSame(
+			"User-agent: *\nDisallow: /wp-admin/\n\n# BEGIN Aktio Connector\nUser-agent: ClaudeBot\nDisallow: /\n# END Aktio Connector\n",
+			$out
+		);
 		foreach ( Settings::BOTS as $bot ) {
-			$this->assertSame( 1, substr_count( $out, 'User-agent: ' . $bot . "\n" ), $bot );
+			if ( 'ClaudeBot' !== $bot ) {
+				$this->assertStringNotContainsString( 'User-agent: ' . $bot . "\n", $out, $bot );
+			}
 		}
-		$begin = strpos( $out, '# BEGIN Aktio Connector' );
-		$this->assertGreaterThan( $begin, strpos( $out, 'User-agent: GPTBot' ) );
-		$this->assertLessThan( strpos( $out, '# END Aktio Connector' ), strpos( $out, 'User-agent: Applebot-Extended' ) );
+		$this->assertStringNotContainsString( 'Allow: /', str_replace( 'Disallow: /', '', $out ) );
+	}
+
+	public function test_robots_skips_bot_already_named_in_output() {
+		Settings::update( array( 'bots' => array( 'ClaudeBot' => 'block', 'GPTBot' => 'block' ) ) );
+		$base = "User-agent: *\nDisallow: /wp-admin/\n\nuser-agent: gptbot\nAllow: /blog/\n";
+		$out  = Crawlers::robots( $base, true );
+
+		$this->assertStringStartsWith( $base, $out );
+		$this->assertSame( 1, substr_count( strtolower( $out ), 'user-agent: gptbot' ) );
+		$this->assertStringContainsString( "# BEGIN Aktio Connector\nUser-agent: ClaudeBot\nDisallow: /\n# END Aktio Connector\n", $out );
+
+		// Wszystkie zablokowane boty już nazwane: brak bloku.
+		Settings::update( array( 'bots' => array( 'ClaudeBot' => 'allow', 'GPTBot' => 'block' ) ) );
+		$this->assertSame( $base, Crawlers::robots( $base, true ) );
 	}
 
 	public function test_robots_is_idempotent() {
+		Settings::update( array( 'bots' => array( 'ClaudeBot' => 'block' ) ) );
 		$once = Crawlers::robots( "User-agent: *\n", true );
+		$this->assertStringContainsString( '# BEGIN Aktio Connector', $once );
 		$this->assertSame( $once, Crawlers::robots( $once, true ) );
 	}
 
@@ -83,19 +103,22 @@ class CrawlersTest extends WP_UnitTestCase {
 	}
 
 	public function test_robots_appends_when_seo_plugin_provides_robots_via_filter() {
+		Settings::update( array( 'bots' => array( 'GPTBot' => 'block' ) ) );
 		$this->plugin( 'wordpress-seo/wp-seo.php', 'Yoast SEO' );
-		$this->assertFalse( \AktioConnector\Detector::owns( 'robots' ) );
+		// R14: robots.txt generuje Yoast, Aktio tylko dopisuje reguły blokujące.
+		$this->assertSame( array( 'state' => 'active', 'provided_by' => 'Yoast SEO' ), \AktioConnector\Detector::features()['robots'] );
 
 		$base = "User-agent: *\nDisallow: /private/\n";
 		$out  = apply_filters( 'robots_txt', $base, true );
 		// Reszta wyjścia (też dopiski innych wtyczek, np. WooCommerce) zostaje przed blokiem Aktio.
 		$this->assertStringContainsString( 'Disallow: /private/', $out );
 		$this->assertLessThan( strpos( $out, '# BEGIN Aktio Connector' ), strpos( $out, 'Disallow: /private/' ) );
-		$this->assertStringContainsString( 'User-agent: GPTBot', $out );
+		$this->assertStringContainsString( "User-agent: GPTBot\nDisallow: /", $out );
 		$this->assertStringNotContainsString( 'Aktio Connector', apply_filters( 'robots_txt', $base, false ) );
 	}
 
 	public function test_robots_nothing_when_physical_file() {
+		Settings::update( array( 'bots' => array( 'GPTBot' => 'block' ) ) );
 		file_put_contents( ABSPATH . 'robots.txt', "User-agent: *\n" );
 		$this->assertSame( "User-agent: *\n", Crawlers::robots( "User-agent: *\n", true ) );
 	}

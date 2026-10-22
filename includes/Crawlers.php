@@ -2,6 +2,7 @@
 /**
  * Boty AI w robots.txt (filtr robots_txt) i plik llms.txt serwowany z korzenia witryny.
  * Fizyczny plik robots.txt/llms.txt ma pierwszeństwo (C5): wtedy Aktio nic nie dopisuje.
+ * Robots.txt z wtyczki SEO: Aktio tylko dopisuje reguły blokujące (R14).
  *
  * @package AktioConnector
  */
@@ -66,8 +67,12 @@ class Crawlers {
 	}
 
 	/**
-	 * Dopisuje blok botów AI. Strona niepubliczna (blog_public = 0) i fizyczny
-	 * robots.txt zostawiają wyjście bez zmian; blok nie jest dopisywany dwa razy.
+	 * Dopisuje grupy dla botów AI ustawionych na `block` (`Disallow: /`).
+	 * Boty dozwolone nie dostają grupy — idą za `User-agent: *` (R13). Bot
+	 * nazwany już w `User-agent:` wyjścia (np. reguła właściciela z wtyczki SEO)
+	 * jest pomijany, żeby nie nadpisać cudzej reguły. Bez żadnej grupy nie ma
+	 * też bloku. Strona niepubliczna (blog_public = 0) i fizyczny robots.txt
+	 * zostawiają wyjście bez zmian; blok nie jest dopisywany dwa razy.
 	 */
 	public static function robots( string $output, bool $public ): string {
 		if ( ! $public || false !== strpos( $output, self::BEGIN ) ) {
@@ -78,18 +83,24 @@ class Crawlers {
 			return $output;
 		}
 
-		$lines = array( self::BEGIN );
-		$bots  = Settings::get()['bots'];
-		foreach ( Settings::BOTS as $i => $bot ) {
-			if ( $i > 0 ) {
-				$lines[] = '';
-			}
-			$lines[] = 'User-agent: ' . $bot;
-			$lines[] = 'block' === ( $bots[ $bot ] ?? 'allow' ) ? 'Disallow: /' : 'Allow: /';
+		$named = array();
+		if ( preg_match_all( '/^[ \t]*User-agent[ \t]*:[ \t]*(\S+)/mi', $output, $m ) ) {
+			$named = array_map( 'strtolower', $m[1] );
 		}
-		$lines[] = self::END;
 
-		return rtrim( $output ) . "\n\n" . implode( "\n", $lines ) . "\n";
+		$groups = array();
+		$bots   = Settings::get()['bots'];
+		foreach ( Settings::BOTS as $bot ) {
+			if ( 'block' !== ( $bots[ $bot ] ?? 'allow' ) || in_array( strtolower( $bot ), $named, true ) ) {
+				continue;
+			}
+			$groups[] = 'User-agent: ' . $bot . "\nDisallow: /";
+		}
+		if ( ! $groups ) {
+			return $output;
+		}
+
+		return rtrim( $output ) . "\n\n" . self::BEGIN . "\n" . implode( "\n\n", $groups ) . "\n" . self::END . "\n";
 	}
 
 	/**
