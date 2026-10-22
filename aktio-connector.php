@@ -34,6 +34,7 @@ require_once __DIR__ . '/includes/Health.php';
 \AktioConnector\Schema\ContentSchema::register();
 \AktioConnector\Schema\ProductSchema::register();
 \AktioConnector\Crawlers::register();
+\AktioConnector\Updates::register();
 
 register_activation_hook( __FILE__, array( '\\AktioConnector\\Crawlers', 'activate' ) );
 register_deactivation_hook( __FILE__, array( '\\AktioConnector\\Crawlers', 'deactivate' ) );

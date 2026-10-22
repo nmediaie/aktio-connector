@@ -1,6 +1,6 @@
 <?php
 /**
- * Trasy REST aktio/v1: status, visibility, health.
+ * Trasy REST aktio/v1: status, visibility, health, updates, auto-updates.
  *
  * @package AktioConnector
  */
@@ -52,6 +52,35 @@ class Rest {
 				'methods'             => 'GET',
 				'callback'            => array( __CLASS__, 'health' ),
 				'permission_callback' => self::permission( 'view_site_health_checks' ),
+			)
+		);
+
+		// Wejście (any-of); dokładna capability wg `type` sprawdzana w handlerze.
+		$update_caps = array( 'update_core', 'update_plugins', 'update_themes' );
+		register_rest_route(
+			self::NAMESPACE,
+			'/updates',
+			array(
+				array(
+					'methods'             => 'GET',
+					'callback'            => array( __CLASS__, 'updates' ),
+					'permission_callback' => self::permission( ...$update_caps ),
+				),
+				array(
+					'methods'             => 'POST',
+					'callback'            => array( __CLASS__, 'updates_apply' ),
+					'permission_callback' => self::permission( ...$update_caps ),
+				),
+			)
+		);
+
+		register_rest_route(
+			self::NAMESPACE,
+			'/auto-updates',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( __CLASS__, 'auto_updates_set' ),
+				'permission_callback' => self::permission( ...$update_caps ),
 			)
 		);
 	}
@@ -119,6 +148,87 @@ class Rest {
 		}
 		Settings::update( array_intersect_key( $body, array_flip( array( 'company', 'bots' ) ) ) );
 		return self::visibility();
+	}
+
+	public static function updates(): \WP_REST_Response {
+		$data        = Updates::available();
+		$data['log'] = Updates::log( 50 );
+		return rest_ensure_response( $data );
+	}
+
+	/**
+	 * POST updates: {type, item}. Capability musi pasować do typu.
+	 */
+	public static function updates_apply( \WP_REST_Request $request ) {
+		$body  = self::json_object( $request );
+		$check = self::check_update_type( $body );
+		if ( is_wp_error( $check ) ) {
+			return $check;
+		}
+		$item = $body['item'] ?? null;
+		if ( 'core' === $body['type'] ) {
+			$item = 'core';
+		} elseif ( ! is_string( $item ) ) {
+			return self::invalid_params( __( 'Pole item (tekst) jest wymagane.', 'aktio-connector' ) );
+		}
+		$result = Updates::apply( $body['type'], $item, 'aktio' );
+		return is_wp_error( $result ) ? $result : rest_ensure_response( $result );
+	}
+
+	/**
+	 * POST auto-updates: {type, item?, enabled?, core_level?}.
+	 */
+	public static function auto_updates_set( \WP_REST_Request $request ) {
+		$body  = self::json_object( $request );
+		$check = self::check_update_type( $body );
+		if ( is_wp_error( $check ) ) {
+			return $check;
+		}
+		$item       = $body['item'] ?? null;
+		$enabled    = $body['enabled'] ?? null;
+		$core_level = $body['core_level'] ?? null;
+		if ( ( null !== $item && ! is_string( $item ) ) || ( null !== $enabled && ! is_bool( $enabled ) ) || ( null !== $core_level && ! is_string( $core_level ) ) ) {
+			return self::invalid_params( __( 'Nieprawidłowe typy pól item/enabled/core_level.', 'aktio-connector' ) );
+		}
+		if ( 'core' === $body['type'] ) {
+			$item    = null;
+			$enabled = null;
+		} elseif ( null === $item ) {
+			return self::invalid_params( __( 'Pole item (tekst) jest wymagane.', 'aktio-connector' ) );
+		}
+		$result = Updates::set_auto( $body['type'], $item, $enabled, 'core' === $body['type'] ? $core_level : null );
+		return is_wp_error( $result ) ? $result : rest_ensure_response( $result );
+	}
+
+	/** Body jako tablica asocjacyjna (inne kształty → pusta tablica, czyli brak `type`). */
+	private static function json_object( \WP_REST_Request $request ): array {
+		$body = $request->get_json_params();
+		return is_array( $body ) ? $body : array();
+	}
+
+	/**
+	 * `type` ∈ core|plugin|theme (400) i capability dokładnie dla typu (403).
+	 *
+	 * @return true|\WP_Error
+	 */
+	private static function check_update_type( array $body ) {
+		$caps = array(
+			'core'   => 'update_core',
+			'plugin' => 'update_plugins',
+			'theme'  => 'update_themes',
+		);
+		$type = $body['type'] ?? null;
+		if ( ! is_string( $type ) || ! isset( $caps[ $type ] ) ) {
+			return self::invalid_params( __( 'type musi być jednym z: core, plugin, theme.', 'aktio-connector' ) );
+		}
+		if ( ! current_user_can( $caps[ $type ] ) ) {
+			return new \WP_Error(
+				'rest_forbidden',
+				__( 'Brak uprawnień do tej operacji.', 'aktio-connector' ),
+				array( 'status' => rest_authorization_required_code() )
+			);
+		}
+		return true;
 	}
 
 	private static function invalid_params( string $message ): \WP_Error {
