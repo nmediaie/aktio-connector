@@ -1,6 +1,6 @@
 <?php
 /**
- * Trasy REST aktio/v1: status, visibility.
+ * Trasy REST aktio/v1: status, visibility, health.
  *
  * @package AktioConnector
  */
@@ -44,6 +44,16 @@ class Rest {
 				),
 			)
 		);
+
+		register_rest_route(
+			self::NAMESPACE,
+			'/health',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( __CLASS__, 'health' ),
+				'permission_callback' => self::permission( 'view_site_health_checks' ),
+			)
+		);
 	}
 
 	/**
@@ -85,6 +95,10 @@ class Rest {
 				'settings'    => Settings::get(),
 			)
 		);
+	}
+
+	public static function health(): \WP_REST_Response {
+		return rest_ensure_response( Health::report() );
 	}
 
 	/**
