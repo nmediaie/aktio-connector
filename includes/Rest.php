@@ -142,7 +142,7 @@ class Rest {
 		}
 		foreach ( array( 'company', 'bots' ) as $key ) {
 			if ( array_key_exists( $key, $body ) && ! is_array( $body[ $key ] ) ) {
-				/* translators: %s: nazwa pola */
+				/* translators: %s: field name */
 				return self::invalid_params( sprintf( __( 'The %s field must be an object.', 'aktio-connector' ), $key ) );
 			}
 		}

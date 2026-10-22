@@ -28,6 +28,8 @@ class Crawlers {
 		add_action( 'deleted_post', array( __CLASS__, 'clear_cache' ) );
 		add_action( 'update_option_blogname', array( __CLASS__, 'clear_cache' ) );
 		add_action( 'update_option_blogdescription', array( __CLASS__, 'clear_cache' ) );
+		add_action( 'update_option_WPLANG', array( __CLASS__, 'clear_cache' ) );
+		add_action( 'add_option_WPLANG', array( __CLASS__, 'clear_cache' ) );
 		add_action( 'aktio_connector_settings_updated', array( __CLASS__, 'clear_cache' ) );
 	}
 

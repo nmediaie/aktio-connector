@@ -134,8 +134,8 @@ class HealthTest extends WP_UnitTestCase {
 		$this->assertStringNotContainsString( ABSPATH, $out );
 		$this->assertStringNotContainsString( WP_CONTENT_DIR, $out );
 		$this->assertStringNotContainsString( 'jan@example.com', $out );
-		$this->assertStringContainsString( '[ścieżka]', $out );
-		$this->assertStringContainsString( '[e-mail]', $out );
+		$this->assertStringContainsString( '[path]', $out );
+		$this->assertStringContainsString( '[email]', $out );
 	}
 
 	public function test_redact_home_directory() {
@@ -144,7 +144,7 @@ class HealthTest extends WP_UnitTestCase {
 		$out = Health::redact( 'plik /home/tajny/.cache/a' );
 		putenv( false === $old ? 'HOME' : 'HOME=' . $old );
 		$this->assertStringNotContainsString( '/home/tajny', $out );
-		$this->assertStringContainsString( '[ścieżka]', $out );
+		$this->assertStringContainsString( '[path]', $out );
 	}
 
 	public function test_info_has_contract_keys() {

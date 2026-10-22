@@ -75,9 +75,9 @@ class Health {
 			}
 		);
 		foreach ( $paths as $p ) {
-			$s = str_replace( $p, '[ścieżka]', $s );
+			$s = str_replace( $p, '[path]', $s );
 		}
-		$s = preg_replace( '/[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/', '[e-mail]', $s );
+		$s = preg_replace( '/[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/', '[email]', $s );
 		return (string) $s;
 	}
 

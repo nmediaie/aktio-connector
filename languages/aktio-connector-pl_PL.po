@@ -201,7 +201,7 @@ msgstr "Brak uprawnień do tej operacji."
 msgid "The request body must be a JSON object."
 msgstr "Body musi być obiektem JSON."
 
-#. translators: %s: nazwa pola
+#. translators: %s: field name
 #: includes/Rest.php:146
 #, php-format
 msgid "The %s field must be an object."

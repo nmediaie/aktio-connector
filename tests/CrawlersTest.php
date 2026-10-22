@@ -216,6 +216,19 @@ class CrawlersTest extends WP_UnitTestCase {
 		$this->assertFalse( get_transient( Crawlers::TRANSIENT ), 'blogdescription' );
 		set_transient( Crawlers::TRANSIENT, 'x', HOUR_IN_SECONDS );
 		update_option( 'blogname', 'Nowa nazwa ' . wp_generate_password( 6, false ) );
-		$this->assertFalse( get_transient( Crawlers::TRANSIENT ) );
+		$this->assertFalse( get_transient( Crawlers::TRANSIENT ), 'blogname' );
+		// Rdzeń odrzuca niezainstalowane języki — w teście przepuszczamy wartość surową.
+		add_filter(
+			'sanitize_option_WPLANG',
+			static function ( $value, $option, $original ) {
+				return $original;
+			},
+			10,
+			3
+		);
+		update_option( 'WPLANG', 'en_GB' );
+		set_transient( Crawlers::TRANSIENT, 'x', HOUR_IN_SECONDS );
+		update_option( 'WPLANG', 'pl_PL' );
+		$this->assertFalse( get_transient( Crawlers::TRANSIENT ), 'WPLANG' );
 	}
 }
