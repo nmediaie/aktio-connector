@@ -64,9 +64,7 @@ class DetectorTest extends WP_UnitTestCase {
 		$this->assertSame( array( 'state' => 'provided', 'provided_by' => 'Yoast SEO' ), $f['content_schema'] );
 		$this->assertSame( 'provided', $f['robots']['state'] );
 		$this->assertSame( 'active', $f['llms']['state'] );
-		if ( class_exists( 'WooCommerce' ) ) {
-			$this->assertSame( 'active', $f['product_schema']['state'] );
-		}
+		$this->assertSame( 'active', $f['product_schema']['state'] );
 		$this->assertFalse( Detector::owns( 'content_schema' ) );
 		$this->assertSame( array( array( 'slug' => 'wordpress-seo', 'name' => 'Yoast SEO' ) ), Detector::seo_plugins() );
 	}
@@ -83,6 +81,18 @@ class DetectorTest extends WP_UnitTestCase {
 		$f = Detector::features();
 		$this->assertSame( 'provided', $f['llms']['state'] );
 		$this->assertNotSame( 'provided', $f['product_schema']['state'] );
+	}
+
+	public function test_rank_math_woocommerce_module_provides_product_schema() {
+		$this->plugin( 'seo-by-rank-math/rank-math.php', 'Rank Math SEO' );
+		update_option( 'rank_math_modules', array( 'woocommerce' ) );
+		$this->assertSame( 'provided', Detector::features()['product_schema']['state'] );
+	}
+
+	public function test_yoast_woocommerce_plugin_provides_product_schema() {
+		$this->plugin( 'wordpress-seo/wp-seo.php', 'Yoast SEO' );
+		$this->plugin( 'wpseo-woocommerce/wpseo-woocommerce.php', 'Yoast SEO: WooCommerce' );
+		$this->assertSame( 'provided', Detector::features()['product_schema']['state'] );
 	}
 
 	public function test_llms_plugin_matches_by_directory() {
