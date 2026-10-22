@@ -4,7 +4,7 @@ Tags: schema, llms.txt, robots.txt, ai, woocommerce
 Requires at least: 6.2
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 0.1.0
+Stable tag: 0.1.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -63,6 +63,12 @@ No. Updates over REST are performed only by an authenticated user with the right
 Yes. Under **Settings → Aktio Connector** choose "Block" next to any of the six bots. The block is not added when the site is set to discourage search engines.
 
 == Changelog ==
+
+= 0.1.1 =
+* robots.txt: only bots set to "Block" get a group (`Disallow: /`); allowed bots follow `User-agent: *`, and bots already named in robots.txt (for example by an SEO plugin) are left untouched.
+* Settings screen: when an SEO plugin generates robots.txt, the status says Aktio Connector adds AI-bot rules to it.
+* WooCommerce: a single BreadcrumbList on product pages when Aktio Connector provides the content schema.
+* Uninstall also removes the core auto-update option and the llms.txt cache.
 
 = 0.1.0 =
 * First release: schema.org, AI bots in robots.txt, llms.txt, Site Health and updates over REST with a log, settings screen.
