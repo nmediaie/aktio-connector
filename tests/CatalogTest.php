@@ -104,6 +104,35 @@ class CatalogTest extends WP_UnitTestCase {
 		$this->assertSame( 'post', $item['attached_to']['type'] );
 	}
 
+	public function test_missing_alt_counts_whitespace_only_alt_like_the_scan() {
+		$blank = $this->image( '   ' );
+		$main  = $this->image( "\t " );
+		$ok    = $this->image( 'Ma ALT' );
+		$product = new WC_Product_Simple();
+		$product->set_name( 'Talerz' );
+		$product->set_image_id( $main );
+		$product->save();
+
+		$scan = $this->get( '/aktio/v1/products/scan', array( 'per_page' => 100 ) )->get_data();
+		$this->assertSame( 1, $scan['items'][0]['images_missing_alt'] );
+
+		$data = $this->get( '/aktio/v1/media/missing-alt', array( 'per_page' => 100 ) )->get_data();
+		$ids  = wp_list_pluck( $data['items'], 'id' );
+		$this->assertContains( $blank, $ids );
+		$this->assertContains( $main, $ids );
+		$this->assertNotContains( $ok, $ids );
+	}
+
+	public function test_missing_alt_returns_total_pages() {
+		for ( $i = 0; $i < 5; $i++ ) {
+			$this->image();
+		}
+		$data = $this->get( '/aktio/v1/media/missing-alt', array( 'per_page' => 2 ) )->get_data();
+		$this->assertSame( 5, $data['total'] );
+		$this->assertSame( 3, $data['total_pages'] );
+		$this->assertCount( 2, $data['items'] );
+	}
+
 	public function test_missing_alt_requires_upload_files() {
 		wp_set_current_user( self::factory()->user->create( array( 'role' => 'subscriber' ) ) );
 		$this->assertSame( 403, $this->get( '/aktio/v1/media/missing-alt' )->get_status() );

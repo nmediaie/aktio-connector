@@ -120,10 +120,11 @@ class Catalog {
 						'key'     => '_wp_attachment_image_alt',
 						'compare' => 'NOT EXISTS',
 					),
+					// Pusty lub złożony z samych białych znaków — tak samo liczy product_row() (trim).
 					array(
 						'key'     => '_wp_attachment_image_alt',
-						'value'   => '',
-						'compare' => '=',
+						'value'   => '^[[:space:]]*$',
+						'compare' => 'REGEXP',
 					),
 				),
 			)
@@ -148,8 +149,9 @@ class Catalog {
 
 		return rest_ensure_response(
 			array(
-				'items' => $items,
-				'total' => (int) $query->found_posts,
+				'items'       => $items,
+				'total'       => (int) $query->found_posts,
+				'total_pages' => (int) $query->max_num_pages,
 			)
 		);
 	}
