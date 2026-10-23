@@ -261,6 +261,163 @@ class SettingsTest extends WP_UnitTestCase {
 		$this->assertSame( 'free', $s['merchant']['return_policy']['fees'] );
 	}
 
+	public function test_02_defaults() {
+		$s = Settings::get();
+		$this->assertSame( array( 'home_description' => '', 'default_og_image' => '' ), $s['seo'] );
+		$this->assertSame( str_replace( '_', '-', get_locale() ), $s['content_language'] );
+		$this->assertFalse( $s['indexnow']['enabled'] );
+		$this->assertSame( array( 'bing' => '', 'google' => '' ), $s['verification'] );
+		$c = $s['company'];
+		$this->assertSame( '', $c['description'] );
+		$this->assertSame( '', $c['founding_date'] );
+		$this->assertSame( array( 'telephone' => '', 'email' => '', 'contact_type' => 'customer service', 'languages' => array() ), $c['contact_point'] );
+		$this->assertSame( array(), $c['opening_hours'] );
+		$this->assertNull( $c['geo'] );
+		$this->assertSame( '', $c['area_served'] );
+	}
+
+	public function test_content_language_stored_empty_follows_site_locale() {
+		Settings::update( array( 'content_language' => 'de-DE' ) );
+		$this->assertSame( 'de-DE', Settings::get()['content_language'] );
+		$this->assertSame( 'en', Settings::update( array( 'content_language' => 'en' ) )['content_language'] );
+		$this->assertSame( str_replace( '_', '-', get_locale() ), Settings::update( array( 'content_language' => '' ) )['content_language'] );
+		$this->assertSame( '', get_option( Settings::OPTION )['content_language'] );
+	}
+
+	public function test_indexnow_key_generated_once_and_read_only() {
+		delete_option( Settings::OPTION );
+		$key = Settings::get()['indexnow']['key'];
+		$this->assertMatchesRegularExpression( '/^[a-f0-9]{32}$/', $key );
+		$this->assertSame( $key, Settings::get()['indexnow']['key'] );
+		$this->assertSame( $key, get_option( Settings::OPTION )['indexnow']['key'] );
+
+		$errors = Settings::partial_errors( array( 'indexnow' => array( 'key' => str_repeat( 'a', 32 ) ) ) );
+		$this->assertArrayHasKey( 'indexnow.key', $errors );
+		$s = Settings::update( array( 'indexnow' => array( 'key' => str_repeat( 'a', 32 ), 'enabled' => true ) ) );
+		$this->assertSame( $key, $s['indexnow']['key'] );
+		$this->assertSame( array(), Settings::partial_errors( array( 'indexnow' => array( 'key' => $key ) ) ) );
+	}
+
+	public function test_02_valid_partial_update_persists() {
+		$partial = array(
+			'seo'          => array( 'home_description' => str_repeat( 'a', 160 ), 'default_og_image' => 'https://example.com/og.jpg' ),
+			'verification' => array( 'bing' => str_repeat( 'AB12', 8 ), 'google' => str_repeat( 'a', 20 ) ),
+			'company'      => array(
+				'description'   => str_repeat( 'a', 300 ),
+				'founding_date' => '2020-02-29',
+				'area_served'   => 'Polska',
+				'contact_point' => array( 'telephone' => '+48 111', 'email' => 'a@example.com', 'contact_type' => 'customer service', 'languages' => array( 'pl', 'en' ) ),
+				'opening_hours' => array( array( 'days' => array( 'Mo', 'Tu' ), 'opens' => '09:00', 'closes' => '17:30' ) ),
+				'geo'           => array( 'lat' => 50.8, 'lng' => 16 ),
+			),
+		);
+		$this->assertSame( array(), Settings::partial_errors( $partial ) );
+		$s = Settings::update( $partial );
+		$this->assertSame( 'https://example.com/og.jpg', $s['seo']['default_og_image'] );
+		$this->assertSame( str_repeat( 'a', 20 ), $s['verification']['google'] );
+		$this->assertSame( '2020-02-29', $s['company']['founding_date'] );
+		$this->assertSame( array( 'pl', 'en' ), $s['company']['contact_point']['languages'] );
+		$this->assertSame( array( 'lat' => 50.8, 'lng' => 16.0 ), $s['company']['geo'] );
+		$this->assertSame( 'Polska', Settings::get()['company']['area_served'] );
+		// Częściowy zapis nie rusza reszty; geo można wyczyścić.
+		$s = Settings::update( array( 'company' => array( 'geo' => null ), 'seo' => array( 'home_description' => '' ) ) );
+		$this->assertNull( $s['company']['geo'] );
+		$this->assertSame( 'https://example.com/og.jpg', $s['seo']['default_og_image'] );
+		$this->assertSame( 'a@example.com', $s['company']['contact_point']['email'] );
+	}
+
+	public function settings_02_invalid_provider(): array {
+		$hours = static function ( array $entry ) {
+			return array( 'company' => array( 'opening_hours' => array( $entry ) ) );
+		};
+		$ok    = array( 'days' => array( 'Mo' ), 'opens' => '09:00', 'closes' => '17:00' );
+		return array(
+			'seo not object'         => array( array( 'seo' => array( 1 ) ), 'seo' ),
+			'seo desc 161'           => array( array( 'seo' => array( 'home_description' => str_repeat( 'a', 161 ) ) ), 'seo.home_description' ),
+			'seo desc int'           => array( array( 'seo' => array( 'home_description' => 5 ) ), 'seo.home_description' ),
+			'og not url'             => array( array( 'seo' => array( 'default_og_image' => 'nie url' ) ), 'seo.default_og_image' ),
+			'og http'                => array( array( 'seo' => array( 'default_og_image' => 'http://example.com/a.jpg' ) ), 'seo.default_og_image' ),
+			'lang uppercase'         => array( array( 'content_language' => 'PL' ), 'content_language' ),
+			'lang region lower'      => array( array( 'content_language' => 'pl-pl' ), 'content_language' ),
+			'lang locale'            => array( array( 'content_language' => 'pl_PL' ), 'content_language' ),
+			'lang trailing newline'  => array( array( 'content_language' => "pl\n" ), 'content_language' ),
+			'indexnow not object'    => array( array( 'indexnow' => true ), 'indexnow' ),
+			'indexnow bad bool'      => array( array( 'indexnow' => array( 'enabled' => 1 ) ), 'indexnow.enabled' ),
+			'indexnow unknown'       => array( array( 'indexnow' => array( 'enable' => true ) ), 'indexnow.enable' ),
+			'bing lowercase'         => array( array( 'verification' => array( 'bing' => str_repeat( 'a', 32 ) ) ), 'verification.bing' ),
+			'bing 33'                => array( array( 'verification' => array( 'bing' => str_repeat( 'A', 33 ) ) ), 'verification.bing' ),
+			'bing trailing newline'  => array( array( 'verification' => array( 'bing' => str_repeat( 'A', 32 ) . "\n" ) ), 'verification.bing' ),
+			'google trailing newline' => array( array( 'verification' => array( 'google' => str_repeat( 'a', 20 ) . "\n" ) ), 'verification.google' ),
+			'google 19'              => array( array( 'verification' => array( 'google' => str_repeat( 'a', 19 ) ) ), 'verification.google' ),
+			'google 101'             => array( array( 'verification' => array( 'google' => str_repeat( 'a', 101 ) ) ), 'verification.google' ),
+			'google chars'           => array( array( 'verification' => array( 'google' => str_repeat( 'a', 19 ) . '!' ) ), 'verification.google' ),
+			'verification unknown'   => array( array( 'verification' => array( 'yandex' => 'x' ) ), 'verification.yandex' ),
+			'company desc 301'       => array( array( 'company' => array( 'description' => str_repeat( 'a', 301 ) ) ), 'company.description' ),
+			'company date format'    => array( array( 'company' => array( 'founding_date' => '2020-1-1' ) ), 'company.founding_date' ),
+			'company date invalid'   => array( array( 'company' => array( 'founding_date' => '2021-02-29' ) ), 'company.founding_date' ),
+			'company date newline'   => array( array( 'company' => array( 'founding_date' => "2020-01-01\n" ) ), 'company.founding_date' ),
+			'area 101'               => array( array( 'company' => array( 'area_served' => str_repeat( 'a', 101 ) ) ), 'company.area_served' ),
+			'contact not object'     => array( array( 'company' => array( 'contact_point' => 'x' ) ), 'company.contact_point' ),
+			'contact unknown'        => array( array( 'company' => array( 'contact_point' => array( 'fax' => '1' ) ) ), 'company.contact_point.fax' ),
+			'contact email'          => array( array( 'company' => array( 'contact_point' => array( 'email' => 'nie-email' ) ) ), 'company.contact_point.email' ),
+			'contact type'           => array( array( 'company' => array( 'contact_point' => array( 'contact_type' => 'sales' ) ) ), 'company.contact_point.contact_type' ),
+			'contact langs 6'        => array( array( 'company' => array( 'contact_point' => array( 'languages' => array( 'a', 'b', 'c', 'd', 'e', 'f' ) ) ) ), 'company.contact_point.languages' ),
+			'contact langs type'     => array( array( 'company' => array( 'contact_point' => array( 'languages' => array( 5 ) ) ) ), 'company.contact_point.languages' ),
+			'hours not list'         => array( array( 'company' => array( 'opening_hours' => 'x' ) ), 'company.opening_hours' ),
+			'hours 8 entries'        => array( array( 'company' => array( 'opening_hours' => array_fill( 0, 8, $ok ) ) ), 'company.opening_hours' ),
+			'hours bad day'          => array( $hours( array_merge( $ok, array( 'days' => array( 'Mon' ) ) ) ), 'company.opening_hours' ),
+			'hours empty days'       => array( $hours( array_merge( $ok, array( 'days' => array() ) ) ), 'company.opening_hours' ),
+			'hours bad time'         => array( $hours( array_merge( $ok, array( 'opens' => '24:00' ) ) ), 'company.opening_hours' ),
+			'hours bad time 2'       => array( $hours( array_merge( $ok, array( 'closes' => '9:00' ) ) ), 'company.opening_hours' ),
+			'hours time newline'     => array( $hours( array_merge( $ok, array( 'opens' => "09:00\n" ) ) ), 'company.opening_hours' ),
+			'hours missing key'      => array( $hours( array( 'days' => array( 'Mo' ), 'opens' => '09:00' ) ), 'company.opening_hours' ),
+			'hours extra key'        => array( $hours( array_merge( $ok, array( 'note' => 'x' ) ) ), 'company.opening_hours' ),
+			'geo lat'                => array( array( 'company' => array( 'geo' => array( 'lat' => 90.5, 'lng' => 0 ) ) ), 'company.geo' ),
+			'geo lng'                => array( array( 'company' => array( 'geo' => array( 'lat' => 0, 'lng' => -181 ) ) ), 'company.geo' ),
+			'geo missing'            => array( array( 'company' => array( 'geo' => array( 'lat' => 0 ) ) ), 'company.geo' ),
+			'geo string'             => array( array( 'company' => array( 'geo' => array( 'lat' => '1', 'lng' => '2' ) ) ), 'company.geo' ),
+		);
+	}
+
+	/**
+	 * @dataProvider settings_02_invalid_provider
+	 */
+	public function test_02_invalid_values_are_reported_and_not_stored( array $partial, string $field ) {
+		$before = Settings::get();
+		$errors = Settings::partial_errors( $partial );
+		$this->assertArrayHasKey( $field, $errors );
+		$this->assertStringContainsString( $field, $errors[ $field ] );
+		$after = Settings::update( $partial );
+		$this->assertSame( $before, $after );
+	}
+
+	public function test_02_boundary_values_are_valid() {
+		$partial = array(
+			'seo'          => array( 'home_description' => str_repeat( 'ą', 160 ), 'default_og_image' => '' ),
+			'verification' => array( 'bing' => '', 'google' => str_repeat( 'a', 100 ) ),
+			'company'      => array(
+				'description'   => str_repeat( 'a', 300 ),
+				'opening_hours' => array_fill( 0, 7, array( 'days' => array( 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su' ), 'opens' => '00:00', 'closes' => '23:59' ) ),
+				'geo'           => array( 'lat' => -90, 'lng' => 180 ),
+				'contact_point' => array( 'languages' => array() ),
+				'founding_date' => '',
+			),
+		);
+		$this->assertSame( array(), Settings::partial_errors( $partial ) );
+	}
+
+	public function test_corrupted_stored_02_settings_fall_back_to_defaults() {
+		update_option( Settings::OPTION, array( 'seo' => 'x', 'indexnow' => 'zly', 'verification' => array( 'bing' => 'x' ), 'content_language' => 5, 'company' => array( 'geo' => 'x', 'opening_hours' => 'x' ) ) );
+		$s = Settings::get();
+		$this->assertSame( '', $s['seo']['home_description'] );
+		$this->assertFalse( $s['indexnow']['enabled'] );
+		$this->assertMatchesRegularExpression( '/^[a-f0-9]{32}$/', $s['indexnow']['key'] );
+		$this->assertSame( '', $s['verification']['bing'] );
+		$this->assertSame( str_replace( '_', '-', get_locale() ), $s['content_language'] );
+		$this->assertNull( $s['company']['geo'] );
+		$this->assertSame( array(), $s['company']['opening_hours'] );
+	}
+
 	public function test_corrupted_stored_merchant_falls_back_to_defaults() {
 		update_option( Settings::OPTION, array( 'merchant' => array( 'return_policy' => array( 'days' => 'abc', 'fees' => 'x' ), 'shipping' => 'zly' ) ) );
 		$m = Settings::get()['merchant'];

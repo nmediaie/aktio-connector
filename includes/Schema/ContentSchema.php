@@ -9,6 +9,7 @@
 namespace AktioConnector\Schema;
 
 use AktioConnector\Detector;
+use AktioConnector\Language;
 use AktioConnector\Settings;
 
 defined( 'ABSPATH' ) || exit;
@@ -96,6 +97,69 @@ class ContentSchema {
 		if ( ! empty( $c['same_as'] ) ) {
 			$node['sameAs'] = array_values( $c['same_as'] );
 		}
+
+		$description = Graph::plain( $c['description'] );
+		if ( '' !== $description ) {
+			$node['description'] = $description;
+		}
+		if ( '' !== $c['founding_date'] ) {
+			$node['foundingDate'] = $c['founding_date'];
+		}
+		if ( '' !== $c['area_served'] ) {
+			$node['areaServed'] = $c['area_served'];
+		}
+		$cp    = $c['contact_point'];
+		$point = array_filter(
+			array(
+				'contactType' => $cp['contact_type'],
+				'telephone'   => $cp['telephone'],
+				'email'       => $cp['email'],
+			),
+			'strlen'
+		);
+		if ( '' !== $cp['telephone'] || '' !== $cp['email'] || ! empty( $cp['languages'] ) ) {
+			$node['contactPoint'] = array( '@type' => 'ContactPoint' ) + $point;
+			if ( ! empty( $cp['languages'] ) ) {
+				$node['contactPoint']['availableLanguage'] = array_values( $cp['languages'] );
+			}
+		}
+
+		// Godziny i współrzędne mają sens tylko dla firmy lokalnej (dane są zapisywane niezależnie od typu).
+		if ( 'LocalBusiness' === $c['type'] ) {
+			$days  = array(
+				'Mo' => 'Monday',
+				'Tu' => 'Tuesday',
+				'We' => 'Wednesday',
+				'Th' => 'Thursday',
+				'Fr' => 'Friday',
+				'Sa' => 'Saturday',
+				'Su' => 'Sunday',
+			);
+			$hours = array();
+			foreach ( $c['opening_hours'] as $entry ) {
+				$hours[] = array(
+					'@type'     => 'OpeningHoursSpecification',
+					'dayOfWeek' => array_map(
+						static function ( $day ) use ( $days ) {
+							return $days[ $day ];
+						},
+						$entry['days']
+					),
+					'opens'     => $entry['opens'],
+					'closes'    => $entry['closes'],
+				);
+			}
+			if ( $hours ) {
+				$node['openingHoursSpecification'] = $hours;
+			}
+			if ( is_array( $c['geo'] ) ) {
+				$node['geo'] = array(
+					'@type'     => 'GeoCoordinates',
+					'latitude'  => $c['geo']['lat'],
+					'longitude' => $c['geo']['lng'],
+				);
+			}
+		}
 		return $node;
 	}
 
@@ -105,7 +169,8 @@ class ContentSchema {
 			'@id'             => home_url( '/#website' ),
 			'url'             => home_url( '/' ),
 			'name'            => get_bloginfo( 'name' ),
-			'publisher'       => array( '@id' => home_url( '/#organization' ) ),
+			'inLanguage'      => Language::current(),
+			'publisher'     => array( '@id' => home_url( '/#organization' ) ),
 			'potentialAction' => array(
 				'@type'       => 'SearchAction',
 				'target'      => array(
@@ -127,7 +192,7 @@ class ContentSchema {
 
 	private static function description( \WP_Post $post ): string {
 		// Treść chronioną hasłem lub niepublikowaną nie wypisujemy do <head>.
-		if ( 'publish' !== $post->post_status || post_password_required( $post ) ) {
+		if ( 'publish' !== $post->post_status || '' !== $post->post_password ) {
 			return '';
 		}
 		$text = '' !== trim( $post->post_excerpt ) ? $post->post_excerpt : $post->post_content;
@@ -139,8 +204,9 @@ class ContentSchema {
 			'@type'    => 'WebPage',
 			'@id'      => $url . '#webpage',
 			'url'      => $url,
-			'name'     => self::title( $post ),
-			'isPartOf' => array( '@id' => home_url( '/#website' ) ),
+			'name'       => self::title( $post ),
+			'inLanguage' => Language::current(),
+			'isPartOf'   => array( '@id' => home_url( '/#website' ) ),
 		);
 		if ( $post ) {
 			$node['datePublished'] = get_post_time( 'c', true, $post );

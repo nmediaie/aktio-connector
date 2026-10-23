@@ -57,7 +57,7 @@ class ProductSchema {
 			return $nodes;
 		}
 		$post = get_queried_object();
-		if ( ! $post instanceof \WP_Post || 'publish' !== $post->post_status || post_password_required( $post ) ) {
+		if ( ! $post instanceof \WP_Post || 'publish' !== $post->post_status || '' !== $post->post_password ) {
 			return $nodes;
 		}
 		$product = wc_get_product( $post->ID );

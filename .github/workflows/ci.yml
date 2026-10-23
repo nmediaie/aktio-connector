@@ -27,6 +27,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: bin/build-zip.sh
+      # Kopia o stałej nazwie: link „najnowsza wersja” z panelu Aktio
+      # (releases/latest/download/aktio-connector.zip) nie zmienia się między wydaniami.
+      - run: cp dist/aktio-connector-*.zip dist/aktio-connector.zip
       - uses: softprops/action-gh-release@v2
         with:
-          files: dist/aktio-connector-*.zip
+          files: |
+            dist/aktio-connector-*.zip
+            dist/aktio-connector.zip

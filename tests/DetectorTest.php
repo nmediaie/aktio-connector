@@ -1,6 +1,17 @@
 <?php
 use AktioConnector\Detector;
 
+// Atrapa klasy Jetpack (wtyczki w testach nie ma): aktywność modułów ustawia się w teście.
+if ( ! class_exists( 'Jetpack' ) ) {
+	class Jetpack {
+		public static $modules = array();
+
+		public static function is_module_active( $module ) {
+			return in_array( $module, self::$modules, true );
+		}
+	}
+}
+
 class DetectorTest extends WP_UnitTestCase {
 
 	private $active = array();
@@ -30,6 +41,8 @@ class DetectorTest extends WP_UnitTestCase {
 		}
 		delete_option( 'wpseo' );
 		delete_option( 'rank_math_modules' );
+		Jetpack::$modules = array();
+		remove_all_filters( 'jetpack_enable_open_graph' );
 		parent::tear_down();
 	}
 
@@ -133,6 +146,53 @@ class DetectorTest extends WP_UnitTestCase {
 			$this->active = array();
 			$this->plugin( $file, $name );
 			$this->assertSame( array( 'state' => 'active', 'provided_by' => $name ), Detector::features()['robots'], $name );
+		}
+	}
+
+	public function test_seo_features_active_without_seo_plugin() {
+		$f = Detector::features();
+		foreach ( array( 'title', 'meta_description', 'open_graph', 'twitter_card', 'robots_meta' ) as $feature ) {
+			$this->assertSame( array( 'state' => 'active', 'provided_by' => null ), $f[ $feature ], $feature );
+			$this->assertTrue( Detector::owns( $feature ), $feature );
+		}
+	}
+
+	public function test_yoast_provides_all_seo_features() {
+		$plugins = array(
+			'wordpress-seo/wp-seo.php'                    => 'Yoast SEO',
+			'seo-by-rank-math/rank-math.php'              => 'Rank Math SEO',
+			'wp-seopress/seopress.php'                    => 'SEOPress',
+			'all-in-one-seo-pack/all_in_one_seo_pack.php' => 'All in One SEO',
+			'autodescription/autodescription.php'         => 'The SEO Framework',
+		);
+		foreach ( $plugins as $file => $name ) {
+			$this->active = array();
+			$this->plugin( $file, $name );
+			$f = Detector::features();
+			foreach ( array( 'title', 'meta_description', 'open_graph', 'twitter_card', 'robots_meta' ) as $feature ) {
+				$this->assertSame( array( 'state' => 'provided', 'provided_by' => $name ), $f[ $feature ], $name . ' ' . $feature );
+				$this->assertFalse( Detector::owns( $feature ), $name . ' ' . $feature );
+			}
+		}
+	}
+
+	public function test_jetpack_og_provides_open_graph_and_twitter_only() {
+		$this->plugin( 'jetpack/jetpack.php', 'Jetpack' );
+		Jetpack::$modules = array( 'publicize' );
+		add_filter( 'jetpack_enable_open_graph', '__return_true' );
+		$f = Detector::features();
+		$this->assertSame( array( 'state' => 'provided', 'provided_by' => 'Jetpack' ), $f['open_graph'] );
+		$this->assertSame( array( 'state' => 'provided', 'provided_by' => 'Jetpack' ), $f['twitter_card'] );
+		$this->assertSame( 'active', $f['meta_description']['state'] );
+		$this->assertSame( 'active', $f['title']['state'] );
+		$this->assertSame( 'active', $f['robots_meta']['state'] );
+	}
+
+	public function test_jetpack_without_og_module_provides_nothing() {
+		$this->plugin( 'jetpack/jetpack.php', 'Jetpack' );
+		$f = Detector::features();
+		foreach ( array( 'title', 'meta_description', 'open_graph', 'twitter_card', 'robots_meta' ) as $feature ) {
+			$this->assertSame( 'active', $f[ $feature ]['state'], $feature );
 		}
 	}
 

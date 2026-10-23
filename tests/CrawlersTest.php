@@ -159,6 +159,14 @@ class CrawlersTest extends WP_UnitTestCase {
 		$this->assertStringNotContainsString( '<', $out );
 	}
 
+	public function test_llms_uses_company_description_before_site_tagline() {
+		Settings::update( array( 'company' => array( 'name' => 'Firma', 'description' => 'Opis <b>firmy</b>' ) ) );
+		update_option( 'blogdescription', 'Hasło witryny' );
+		$out = Crawlers::llms();
+		$this->assertStringContainsString( "> Opis firmy\n", $out );
+		$this->assertStringNotContainsString( 'Hasło witryny', $out );
+	}
+
 	public function polish_locale() {
 		return 'pl_PL';
 	}

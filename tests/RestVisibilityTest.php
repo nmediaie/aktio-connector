@@ -18,7 +18,7 @@ class RestVisibilityTest extends WP_UnitTestCase {
 		$this->assertSame( 200, $res->get_status() );
 		$data = $res->get_data();
 		$this->assertSame( array( 'features', 'seo_plugins', 'settings' ), array_keys( $data ) );
-		$this->assertSame( array( 'company', 'bots', 'merchant' ), array_keys( $data['settings'] ) );
+		$this->assertSame( array( 'company', 'bots', 'merchant', 'seo', 'content_language', 'indexnow', 'verification' ), array_keys( $data['settings'] ) );
 		$this->assertSame( 'block', $data['settings']['bots']['GPTBot'] );
 		$this->assertSame( 'allow', $data['settings']['bots']['ClaudeBot'] );
 
@@ -94,6 +94,54 @@ class RestVisibilityTest extends WP_UnitTestCase {
 		$this->assertSame( 'aktio_invalid_params', $res->get_data()['code'] );
 		$this->assertStringContainsString( $field, $res->get_data()['message'] );
 		$this->assertSame( $before, get_option( \AktioConnector\Settings::OPTION ) );
+	}
+
+	public function settings_02_bad_body_provider(): array {
+		return array(
+			'seo scalar'         => array( array( 'seo' => 'x' ), 'seo' ),
+			'seo description'    => array( array( 'seo' => array( 'home_description' => str_repeat( 'a', 161 ) ) ), 'seo.home_description' ),
+			'seo og http'        => array( array( 'seo' => array( 'default_og_image' => 'http://example.com/a.jpg' ) ), 'seo.default_og_image' ),
+			'seo unknown'        => array( array( 'seo' => array( 'titel' => 'x' ) ), 'seo.titel' ),
+			'language bad'       => array( array( 'content_language' => 'pol' ), 'content_language' ),
+			'language type'      => array( array( 'content_language' => 5 ), 'content_language' ),
+			'indexnow enabled'   => array( array( 'indexnow' => array( 'enabled' => 'yes' ) ), 'indexnow.enabled' ),
+			'indexnow key'       => array( array( 'indexnow' => array( 'key' => 'abc' ) ), 'indexnow.key' ),
+			'verification bing'  => array( array( 'verification' => array( 'bing' => 'abc' ) ), 'verification.bing' ),
+			'verification gogl'  => array( array( 'verification' => array( 'google' => 'short' ) ), 'verification.google' ),
+			'company date'       => array( array( 'company' => array( 'founding_date' => '2020-02-30' ) ), 'company.founding_date' ),
+			'company hours'      => array( array( 'company' => array( 'opening_hours' => array( array( 'days' => array( 'Xx' ), 'opens' => '09:00', 'closes' => '17:00' ) ) ) ), 'company.opening_hours' ),
+			'company geo'        => array( array( 'company' => array( 'geo' => array( 'lat' => 91, 'lng' => 0 ) ) ), 'company.geo' ),
+			'company contact'    => array( array( 'company' => array( 'contact_point' => array( 'contact_type' => 'sales' ) ) ), 'company.contact_point.contact_type' ),
+		);
+	}
+
+	/**
+	 * @dataProvider settings_02_bad_body_provider
+	 */
+	public function test_post_visibility_rejects_bad_02_settings_and_changes_nothing( array $body, string $field ) {
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
+		$this->post( array( 'seo' => array( 'home_description' => 'Stary' ) ) );
+		$before          = get_option( \AktioConnector\Settings::OPTION );
+		$body['company'] = array_merge( $body['company'] ?? array(), array( 'name' => 'Nie zapisuj' ) );
+		$res             = $this->post( $body );
+		$this->assertSame( 400, $res->get_status() );
+		$this->assertSame( 'aktio_invalid_params', $res->get_data()['code'] );
+		$this->assertStringContainsString( $field, $res->get_data()['message'] );
+		$this->assertSame( $before, get_option( \AktioConnector\Settings::OPTION ) );
+	}
+
+	public function test_post_visibility_updates_02_settings_partially() {
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
+		$this->post( array( 'seo' => array( 'home_description' => 'Opis' ), 'content_language' => 'pl-PL' ) );
+		$res = $this->post( array( 'indexnow' => array( 'enabled' => true ), 'verification' => array( 'bing' => str_repeat( 'A1', 16 ) ) ) );
+		$this->assertSame( 200, $res->get_status() );
+		$s = $res->get_data()['settings'];
+		$this->assertSame( 'Opis', $s['seo']['home_description'] );
+		$this->assertSame( 'pl-PL', $s['content_language'] );
+		$this->assertTrue( $s['indexnow']['enabled'] );
+		$this->assertSame( str_repeat( 'A1', 16 ), $s['verification']['bing'] );
+		// Odesłanie bieżącego klucza (GET → POST) jest dozwolone.
+		$this->assertSame( 200, $this->post( array( 'indexnow' => array( 'key' => $s['indexnow']['key'] ) ) )->get_status() );
 	}
 
 	public function test_post_visibility_unknown_company_key_still_ignored() {

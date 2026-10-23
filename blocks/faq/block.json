@@ -1,0 +1,20 @@
+{
+	"$schema": "https://schemas.wp.org/trunk/block.json",
+	"apiVersion": 3,
+	"name": "aktio/faq",
+	"title": "FAQ (Aktio)",
+	"category": "widgets",
+	"icon": "editor-help",
+	"description": "Questions and answers with FAQPage structured data.",
+	"textdomain": "aktio-connector",
+	"attributes": {
+		"items": {
+			"type": "array",
+			"default": []
+		}
+	},
+	"supports": {
+		"html": false
+	},
+	"editorScript": "aktio-faq-editor"
+}

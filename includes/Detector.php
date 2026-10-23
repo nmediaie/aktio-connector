@@ -12,7 +12,12 @@ defined( 'ABSPATH' ) || exit;
 
 class Detector {
 
-	const FEATURES = array( 'content_schema', 'product_schema', 'robots', 'llms' );
+	const FEATURES = array( 'content_schema', 'product_schema', 'robots', 'llms', 'title', 'meta_description', 'open_graph', 'twitter_card', 'robots_meta' );
+
+	/**
+	 * Funkcje SEO głowy strony (podzbiór FEATURES) — klucz `seo` w statusie.
+	 */
+	const SEO_FEATURES = array( 'title', 'meta_description', 'open_graph', 'twitter_card', 'robots_meta' );
 
 	/**
 	 * Funkcje, w których wtyczka SEO nie wyklucza Aktio: robots.txt generowany
@@ -22,7 +27,7 @@ class Detector {
 	const SHARED = array( 'robots' );
 
 	/**
-	 * Stan czterech funkcji: active (dostarcza Aktio; przy robots z wtyczki SEO
+	 * Stan funkcji: active (dostarcza Aktio; przy robots z wtyczki SEO
 	 * `provided_by` = jej nazwa, Aktio tylko dopisuje), provided (dostarcza
 	 * wtyczka lub plik), off (niedostępne — product_schema bez WooCommerce).
 	 */
@@ -114,10 +119,15 @@ class Detector {
 				'name'     => 'Yoast SEO',
 				'files'    => array( 'wordpress-seo/wp-seo.php' ),
 				'provides' => array(
-					'content_schema' => true,
-					'robots'         => true,
+					'title'            => true,
+					'meta_description' => true,
+					'open_graph'       => true,
+					'twitter_card'     => true,
+					'robots_meta'      => true,
+					'content_schema'   => true,
+					'robots'           => true,
 					// Opcja `enable_llms_txt` w opcji `wpseo` (zweryfikowane w kodzie Yoast SEO).
-					'llms'           => static function () {
+					'llms'             => static function () {
 						$opts = get_option( 'wpseo' );
 						return is_array( $opts ) && ! empty( $opts['enable_llms_txt'] );
 					},
@@ -132,13 +142,18 @@ class Detector {
 				'name'     => 'Rank Math SEO',
 				'files'    => array( 'seo-by-rank-math/rank-math.php' ),
 				'provides' => array(
-					'content_schema' => true,
-					'robots'         => true,
+					'title'            => true,
+					'meta_description' => true,
+					'open_graph'       => true,
+					'twitter_card'     => true,
+					'robots_meta'      => true,
+					'content_schema'   => true,
+					'robots'           => true,
 					// Moduły w opcji `rank_math_modules` (zweryfikowane w kodzie Rank Math).
-					'product_schema' => static function () {
+					'product_schema'   => static function () {
 						return self::rank_math_module( 'woocommerce' );
 					},
-					'llms'           => static function () {
+					'llms'             => static function () {
 						return self::rank_math_module( 'llms-txt' );
 					},
 				),
@@ -147,8 +162,13 @@ class Detector {
 				'name'     => 'SEOPress',
 				'files'    => array( 'wp-seopress/seopress.php' ),
 				'provides' => array(
-					'content_schema' => true,
-					'robots'         => true,
+					'title'            => true,
+					'meta_description' => true,
+					'open_graph'       => true,
+					'twitter_card'     => true,
+					'robots_meta'      => true,
+					'content_schema'   => true,
+					'robots'           => true,
 				),
 			),
 			array(
@@ -158,17 +178,27 @@ class Detector {
 					'all-in-one-seo-pack-pro/all_in_one_seo_pack.php',
 				),
 				'provides' => array(
-					'content_schema' => true,
-					'robots'         => true,
-					'llms'           => true,
+					'title'            => true,
+					'meta_description' => true,
+					'open_graph'       => true,
+					'twitter_card'     => true,
+					'robots_meta'      => true,
+					'content_schema'   => true,
+					'robots'           => true,
+					'llms'             => true,
 				),
 			),
 			array(
 				'name'     => 'The SEO Framework',
 				'files'    => array( 'autodescription/autodescription.php' ),
 				'provides' => array(
-					'content_schema' => true,
-					'robots'         => true,
+					'title'            => true,
+					'meta_description' => true,
+					'open_graph'       => true,
+					'twitter_card'     => true,
+					'robots_meta'      => true,
+					'content_schema'   => true,
+					'robots'           => true,
 				),
 			),
 			array(
@@ -177,6 +207,19 @@ class Detector {
 				'provides' => array(
 					'content_schema' => true,
 					'product_schema' => true,
+				),
+			),
+			array(
+				'name'     => 'Jetpack',
+				'files'    => array( 'jetpack/jetpack.php' ),
+				'provides' => array(
+					// Open Graph i karty X daje Jetpack tylko przy włączonym OG (filtr jetpack_enable_open_graph).
+					'open_graph'   => static function () {
+						return self::jetpack_open_graph();
+					},
+					'twitter_card' => static function () {
+						return self::jetpack_open_graph();
+					},
 				),
 			),
 			array(
@@ -206,6 +249,16 @@ class Detector {
 		}
 		$cond = $entry['provides'][ $feature ];
 		return is_callable( $cond ) ? (bool) call_user_func( $cond ) : true;
+	}
+
+	private static function jetpack_open_graph(): bool {
+		if ( ! class_exists( 'Jetpack' ) ) {
+			return false;
+		}
+		return (bool) apply_filters(
+			'jetpack_enable_open_graph',
+			\Jetpack::is_module_active( 'publicize' ) || \Jetpack::is_module_active( 'sharedaddy' )
+		);
 	}
 
 	private static function rank_math_module( string $module ): bool {

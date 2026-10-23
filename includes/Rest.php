@@ -55,6 +55,67 @@ class Rest {
 			)
 		);
 
+		register_rest_route(
+			self::NAMESPACE,
+			'/indexnow/sitemap',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( __CLASS__, 'indexnow_sitemap' ),
+				'permission_callback' => self::permission( 'manage_options' ),
+			)
+		);
+
+		register_rest_route(
+			self::NAMESPACE,
+			'/beacon',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( Metrics::class, 'beacon' ),
+				'permission_callback' => '__return_true',
+			)
+		);
+
+		register_rest_route(
+			self::NAMESPACE,
+			'/metrics',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( __CLASS__, 'metrics' ),
+				'permission_callback' => self::permission( 'manage_options' ),
+			)
+		);
+
+		register_rest_route(
+			self::NAMESPACE,
+			'/products/scan',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( Catalog::class, 'scan_products' ),
+				'permission_callback' => self::permission( 'edit_products' ),
+			)
+		);
+
+		register_rest_route(
+			self::NAMESPACE,
+			'/media/missing-alt',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( Catalog::class, 'missing_alt' ),
+				'permission_callback' => self::permission( 'upload_files' ),
+			)
+		);
+
+		// Uprawnienie edit_post sprawdzane osobno dla każdego elementu w handlerze.
+		register_rest_route(
+			self::NAMESPACE,
+			'/media/alt',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( Catalog::class, 'update_alt' ),
+				'permission_callback' => self::permission( 'upload_files' ),
+			)
+		);
+
 		// Wejście (any-of); dokładna capability wg `type` sprawdzana w handlerze.
 		$update_caps = array( 'update_core', 'update_plugins', 'update_themes' );
 		register_rest_route(
@@ -106,14 +167,52 @@ class Rest {
 	public static function status(): \WP_REST_Response {
 		return rest_ensure_response(
 			array(
-				'version'     => AKTIO_CONNECTOR_VERSION,
-				'woocommerce' => class_exists( 'WooCommerce' ),
-				'features'    => Detector::features(),
-				'seo_plugins' => Detector::seo_plugins(),
-				'company'     => Settings::get()['company'],
-				'update_log'  => Updates::log( 5 ),
+				'version'          => AKTIO_CONNECTOR_VERSION,
+				'woocommerce'      => class_exists( 'WooCommerce' ),
+				'features'         => Detector::features(),
+				'seo'              => array_intersect_key( Detector::features(), array_flip( Detector::SEO_FEATURES ) ),
+				'seo_plugins'      => Detector::seo_plugins(),
+				'company'          => Settings::get()['company'],
+				'content_language' => Language::current(),
+				'language_warning' => self::language_warning(),
+				'cache'            => array(
+					'plugin'     => CachePurge::detected(),
+					'last_purge' => CachePurge::last(),
+				),
+				'indexnow'         => array(
+					'enabled' => Settings::get()['indexnow']['enabled'],
+					'last'    => IndexNow::last(),
+				),
+				'update_log'       => Updates::log( 5 ),
 			)
 		);
+	}
+
+	/**
+	 * GET metrics?days=30: liczniki botów AI i ruchu z wyszukiwarek AI.
+	 */
+	public static function metrics( \WP_REST_Request $request ): \WP_REST_Response {
+		return rest_ensure_response( Metrics::report( (int) ( $request->get_param( 'days' ) ?? 30 ) ) );
+	}
+
+	/**
+	 * POST indexnow/sitemap: zgłasza całą mapę (raz na 24 h, potem `aktio_rate_limited`).
+	 */
+	public static function indexnow_sitemap() {
+		$result = IndexNow::submit_sitemap();
+		return is_wp_error( $result ) ? $result : rest_ensure_response( $result );
+	}
+
+	/**
+	 * Ostrzeżenie o języku: `gtranslate_js` (tłumaczenie w JS), tablica {expected, detected} albo null.
+	 *
+	 * @return array|string|null
+	 */
+	public static function language_warning() {
+		if ( Language::gtranslate_js() ) {
+			return 'gtranslate_js';
+		}
+		return Language::warning();
 	}
 
 	public static function visibility(): \WP_REST_Response {
@@ -131,8 +230,8 @@ class Rest {
 	}
 
 	/**
-	 * POST visibility: body musi być obiektem JSON z opcjonalnymi company/bots/merchant.
-	 * Pola merchant są walidowane przed zapisem (całość atomowo): błąd → 400 z nazwą pola.
+	 * POST visibility: body musi być obiektem JSON z opcjonalnymi company/bots/merchant/seo/content_language/indexnow/verification.
+	 * Pola 0.2 (poza starymi polami company i bots) są walidowane przed zapisem (całość atomowo): błąd → 400 z nazwą pola.
 	 */
 	public static function visibility_update( \WP_REST_Request $request ) {
 		$body = $request->get_json_params();
@@ -141,14 +240,14 @@ class Rest {
 		if ( ! $is_object ) {
 			return self::invalid_params( __( 'The request body must be a JSON object.', 'aktio-connector' ) );
 		}
-		foreach ( array( 'company', 'bots', 'merchant' ) as $key ) {
+		foreach ( array( 'company', 'bots', 'merchant', 'seo', 'indexnow', 'verification' ) as $key ) {
 			if ( array_key_exists( $key, $body ) && ! is_array( $body[ $key ] ) ) {
 				/* translators: %s: field name */
 				return self::invalid_params( sprintf( __( 'The %s field must be an object.', 'aktio-connector' ), $key ) );
 			}
 		}
-		$partial = array_intersect_key( $body, array_flip( array( 'company', 'bots', 'merchant' ) ) );
-		$errors  = Settings::merchant_errors( $partial );
+		$partial = array_intersect_key( $body, array_flip( array( 'company', 'bots', 'merchant', 'seo', 'content_language', 'indexnow', 'verification' ) ) );
+		$errors  = Settings::partial_errors( $partial );
 		if ( $errors ) {
 			$error = self::invalid_params( reset( $errors ) );
 			$error->add_data(

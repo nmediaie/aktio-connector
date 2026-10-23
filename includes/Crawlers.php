@@ -159,16 +159,21 @@ class Crawlers {
 			return $cached;
 		}
 
-		$name = Settings::get()['company']['name'];
-		$name = self::line( '' !== $name ? $name : (string) get_bloginfo( 'name' ) );
-		$out  = '# ' . $name . "\n";
-		$desc = self::line( (string) get_bloginfo( 'description' ) );
+		$company = Settings::get()['company'];
+		$name    = $company['name'];
+		$name    = self::line( '' !== $name ? $name : (string) get_bloginfo( 'name' ) );
+		$out     = '# ' . $name . "\n";
+		// Opis firmy ma pierwszeństwo przed hasłem witryny.
+		$desc = self::line( $company['description'] );
+		if ( '' === $desc ) {
+			$desc = self::line( (string) get_bloginfo( 'description' ) );
+		}
 		if ( '' !== $desc ) {
 			$out .= "\n> " . $desc . "\n";
 		}
 
-		// Nagłówki llms.txt czyta maszyna: zależą od języka witryny (get_locale), nie od tłumaczenia panelu.
-		$pl   = 0 === strpos( get_locale(), 'pl' );
+		// Nagłówki llms.txt czyta maszyna: zależą od języka treści strony (Language::current), nie od tłumaczenia panelu.
+		$pl   = 0 === strpos( Language::current(), 'pl' );
 		$out .= self::section( $pl ? 'Strony' : 'Pages', self::post_lines( 'page', 50, array( 'menu_order' => 'ASC', 'title' => 'ASC' ) ) );
 		$out .= self::section( $pl ? 'Wpisy' : 'Posts', self::post_lines( 'post', 10, array( 'date' => 'DESC' ) ) );
 		if ( class_exists( 'WooCommerce' ) && function_exists( 'wc_get_product' ) ) {
