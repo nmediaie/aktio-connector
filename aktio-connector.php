@@ -34,6 +34,7 @@ require_once __DIR__ . '/includes/CachePurge.php';
 require_once __DIR__ . '/includes/IndexNow.php';
 require_once __DIR__ . '/includes/Metrics.php';
 require_once __DIR__ . '/includes/Faq.php';
+require_once __DIR__ . '/includes/Catalog.php';
 require_once __DIR__ . '/includes/Crawlers.php';
 require_once __DIR__ . '/includes/Health.php';
 require_once __DIR__ . '/includes/Admin/SettingsPage.php';

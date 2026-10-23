@@ -85,6 +85,37 @@ class Rest {
 			)
 		);
 
+		register_rest_route(
+			self::NAMESPACE,
+			'/products/scan',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( Catalog::class, 'scan_products' ),
+				'permission_callback' => self::permission( 'edit_products' ),
+			)
+		);
+
+		register_rest_route(
+			self::NAMESPACE,
+			'/media/missing-alt',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( Catalog::class, 'missing_alt' ),
+				'permission_callback' => self::permission( 'upload_files' ),
+			)
+		);
+
+		// Uprawnienie edit_post sprawdzane osobno dla każdego elementu w handlerze.
+		register_rest_route(
+			self::NAMESPACE,
+			'/media/alt',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( Catalog::class, 'update_alt' ),
+				'permission_callback' => self::permission( 'upload_files' ),
+			)
+		);
+
 		// Wejście (any-of); dokładna capability wg `type` sprawdzana w handlerze.
 		$update_caps = array( 'update_core', 'update_plugins', 'update_themes' );
 		register_rest_route(
