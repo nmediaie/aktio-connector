@@ -463,6 +463,8 @@ class ProductSchemaTest extends WP_UnitTestCase {
 	public function test_return_policy_absent_when_disabled_or_country_empty() {
 		$this->merchant( array( 'return_policy' => $this->return_policy( array( 'enabled' => false ) ) ) );
 		$this->assertArrayNotHasKey( 'hasMerchantReturnPolicy', $this->product_node( $this->simple() )['offers'] );
+		// Pusty kraj = kraj sklepu; bez kraju sklepu nic nie jest emitowane.
+		update_option( 'woocommerce_default_country', '' );
 		$this->merchant( array( 'return_policy' => $this->return_policy( array( 'enabled' => true, 'country' => '' ) ) ) );
 		$this->assertArrayNotHasKey( 'hasMerchantReturnPolicy', $this->product_node( $this->simple() )['offers'] );
 	}
@@ -549,8 +551,30 @@ class ProductSchemaTest extends WP_UnitTestCase {
 	public function test_shipping_fallback_absent_when_disabled_or_country_empty() {
 		$this->merchant( array( 'shipping' => $this->shipping_fallback( array( 'enabled' => false ) ) ) );
 		$this->assertArrayNotHasKey( 'shippingDetails', $this->product_node( $this->simple() )['offers'] );
+		update_option( 'woocommerce_default_country', '' );
 		$this->merchant( array( 'shipping' => $this->shipping_fallback( array( 'enabled' => true, 'country' => '' ) ) ) );
 		$this->assertArrayNotHasKey( 'shippingDetails', $this->product_node( $this->simple() )['offers'] );
+	}
+
+	public function test_emitted_country_follows_store_country_after_unrelated_save() {
+		update_option( 'woocommerce_default_country', 'PL:DS' );
+		Settings::update(
+			array(
+				'bots'     => array( 'GPTBot' => 'block' ),
+				'merchant' => array(
+					'return_policy' => array( 'enabled' => true ),
+					'shipping'      => array( 'enabled' => true ),
+				),
+			)
+		);
+		$node = $this->product_node( $this->simple() );
+		$this->assertSame( 'PL', $node['offers']['hasMerchantReturnPolicy']['applicableCountry'] );
+		$this->assertSame( 'PL', $node['offers']['shippingDetails']['shippingDestination']['addressCountry'] );
+
+		update_option( 'woocommerce_default_country', 'DE' );
+		$node = $this->product_node( $this->simple() );
+		$this->assertSame( 'DE', $node['offers']['hasMerchantReturnPolicy']['applicableCountry'] );
+		$this->assertSame( 'DE', $node['offers']['shippingDetails']['shippingDestination']['addressCountry'] );
 	}
 
 	public function test_nothing_merchant_related_when_seo_plugin_owns_product_schema() {

@@ -21,9 +21,11 @@ class SettingsPageTest extends WP_UnitTestCase {
 		);
 		$_POST = array();
 		$_REQUEST = array();
+		SettingsPage::$assume_no_woocommerce = false;
 	}
 
 	public function tear_down() {
+		SettingsPage::$assume_no_woocommerce = false;
 		remove_filter( 'option_active_plugins', array( $this, 'filter_active' ) );
 		remove_filter( 'site_option_active_sitewide_plugins', '__return_empty_array' );
 		remove_all_filters( 'wp_redirect' );
@@ -325,5 +327,75 @@ class SettingsPageTest extends WP_UnitTestCase {
 		}
 		$this->assertStringContainsString( 'Dane sprzedawcy (Google)', $html );
 		$this->assertStringContainsString( 'Używane, gdy nie da się ich odczytać z WooCommerce. Deklarujesz te dane wobec Google — wpisz zgodne z regulaminem sklepu.', $html );
+	}
+
+	public function test_page_renders_without_woocommerce_and_without_merchant_inputs() {
+		SettingsPage::$assume_no_woocommerce = true;
+		$html = $this->html();
+		$this->assertStringContainsString( '<h2>Merchant</h2>', $html );
+		$this->assertStringContainsString( 'Merchant fields work with a WooCommerce store.', $html );
+		$this->assertStringNotContainsString( 'merchant[', $html );
+		$this->assertStringNotContainsString( 'Shipping cost', $html );
+		$this->assertStringContainsString( 'name="company[name]"', $html );
+	}
+
+	public function test_save_without_woocommerce_keeps_merchant() {
+		Settings::update( array( 'merchant' => array( 'default_brand' => 'Zostaje' ) ) );
+		SettingsPage::$assume_no_woocommerce = true;
+		$this->post( array( 'company' => array( 'name' => 'X' ) ) );
+		$this->submit();
+		$this->assertSame( 'Zostaje', Settings::get()['merchant']['default_brand'] );
+	}
+
+	public function test_polish_note_without_woocommerce() {
+		SettingsPage::$assume_no_woocommerce = true;
+		$this->assertTrue( load_textdomain( 'aktio-connector', dirname( __DIR__ ) . '/languages/aktio-connector-pl_PL.mo' ) );
+		try {
+			$html = $this->html();
+		} finally {
+			unload_textdomain( 'aktio-connector' );
+		}
+		$this->assertStringContainsString( 'Pola sprzedawcy działają ze sklepem WooCommerce.', $html );
+	}
+
+	public function test_invalid_flag_without_transient_shows_no_error_box() {
+		delete_transient( 'aktio_connector_errors_' . get_current_user_id() );
+		$_GET['invalid'] = '1';
+		$html            = $this->html();
+		unset( $_GET['invalid'] );
+		$this->assertStringNotContainsString( 'notice-error', $html );
+	}
+
+	public function test_error_box_disappears_after_first_display() {
+		set_transient( 'aktio_connector_errors_' . get_current_user_id(), array( 'merchant.shipping.cost must be x' ), 60 );
+		$_GET['invalid'] = '1';
+		$first           = $this->html();
+		$second          = $this->html();
+		unset( $_GET['invalid'] );
+		$this->assertStringContainsString( 'merchant.shipping.cost must be x', $first );
+		$this->assertStringNotContainsString( 'notice-error', $second );
+	}
+
+	public function test_saving_screen_does_not_freeze_store_country() {
+		update_option( 'woocommerce_default_country', 'PL:DS' );
+		$post                                 = $this->merchant_post();
+		$post['return_policy']['country']     = 'pl'; // Wartość prefillowana z kraju sklepu.
+		$post['shipping']['country']          = 'PL';
+		$this->post( array( 'merchant' => $post ) );
+		$this->submit();
+		$stored = get_option( Settings::OPTION )['merchant'];
+		$this->assertSame( '', $stored['return_policy']['country'] );
+		$this->assertSame( '', $stored['shipping']['country'] );
+		update_option( 'woocommerce_default_country', 'DE' );
+		$this->assertSame( 'DE', Settings::get()['merchant']['shipping']['country'] );
+	}
+
+	public function test_saving_screen_keeps_explicit_other_country() {
+		update_option( 'woocommerce_default_country', 'PL:DS' );
+		$post                             = $this->merchant_post();
+		$post['return_policy']['country'] = 'DE';
+		$this->post( array( 'merchant' => $post ) );
+		$this->submit();
+		$this->assertSame( 'DE', get_option( Settings::OPTION )['merchant']['return_policy']['country'] );
 	}
 }

@@ -62,11 +62,15 @@ No. Updates over REST are performed only by an authenticated user with the right
 
 Yes. Under **Settings → Aktio Connector** choose "Block" next to any of the six bots. The block is not added when the site is set to discourage search engines.
 
+= Does the plugin change what I type in the Merchant fields? =
+
+The default brand goes through WordPress text sanitization: HTML tags are stripped and surrounding whitespace is trimmed (up to 100 characters are accepted). Other fields are not corrected: invalid values (for example a wrong country code or a negative cost) are rejected with an error and nothing is saved, because this data is declared to Google. An empty country means the country of your WooCommerce store, including when you change it later.
+
 == Changelog ==
 
 = 0.1.2 =
 * WooCommerce: new Merchant section in the settings (also available to Aktio over `aktio/v1/visibility`): a default brand for products without their own brand, a declared return policy (`hasMerchantReturnPolicy`) and fallback shipping details (`shippingDetails`) used only when WooCommerce shipping zones give nothing. Both declarations are off by default and invalid values are rejected rather than corrected.
-* Nothing from the Merchant section is added when an SEO plugin provides the product schema.
+* Nothing from the Merchant section is added when an SEO plugin provides the product schema. Without WooCommerce the section only shows a note. An unset country follows the WooCommerce store country, and unknown fields in `merchant` are rejected.
 
 = 0.1.1 =
 * robots.txt: only bots set to "Block" get a group (`Disallow: /`); allowed bots follow `User-agent: *`, and bots already named in robots.txt (for example by an SEO plugin) are left untouched.

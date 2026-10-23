@@ -9,16 +9,16 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-10-23T11:02:39+00:00\n"
+"POT-Creation-Date: 2026-10-23T11:09:57+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: aktio-connector\n"
 
 #. Plugin Name of the plugin
 #: aktio-connector.php
-#: includes/Admin/SettingsPage.php:31
-#: includes/Admin/SettingsPage.php:32
-#: includes/Admin/SettingsPage.php:171
+#: includes/Admin/SettingsPage.php:34
+#: includes/Admin/SettingsPage.php:35
+#: includes/Admin/SettingsPage.php:183
 msgid "Aktio Connector"
 msgstr ""
 
@@ -32,282 +32,286 @@ msgstr ""
 msgid "NM Media"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:41
+#: includes/Admin/SettingsPage.php:44
 msgid "Settings"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:51
+#: includes/Admin/SettingsPage.php:54
 msgid "You are not allowed to change these settings."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:173
+#: includes/Admin/SettingsPage.php:185
 msgid "Settings saved."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:178
+#: includes/Admin/SettingsPage.php:190
 msgid "Connection to Aktio: this plugin works on its own; Aktio uses it through an application password."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:184
+#: includes/Admin/SettingsPage.php:196
 msgid "Company"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:185
+#: includes/Admin/SettingsPage.php:197
 msgid "This data goes into schema.org markup (Organization or LocalBusiness). An empty name means the site title."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:187
+#: includes/Admin/SettingsPage.php:199
 msgid "Company name"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:188
+#: includes/Admin/SettingsPage.php:200
 msgid "Type"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:194
+#: includes/Admin/SettingsPage.php:206
 msgid "Logo URL"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:195
+#: includes/Admin/SettingsPage.php:207
 msgid "Phone"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:196
+#: includes/Admin/SettingsPage.php:208
 msgid "Email"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:197
+#: includes/Admin/SettingsPage.php:209
 msgid "Street and number"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:198
+#: includes/Admin/SettingsPage.php:210
 msgid "City"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:199
+#: includes/Admin/SettingsPage.php:211
 msgid "Postal code"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:200
-#: includes/Admin/SettingsPage.php:276
+#: includes/Admin/SettingsPage.php:212
+#: includes/Admin/SettingsPage.php:300
 msgid "Country"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:201
+#: includes/Admin/SettingsPage.php:213
 msgid "Social profiles (sameAs)"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:203
+#: includes/Admin/SettingsPage.php:215
 msgid "One URL per line, up to 10."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:206
+#: includes/Admin/SettingsPage.php:218
 msgid "AI bots in robots.txt"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:213
+#: includes/Admin/SettingsPage.php:225
 msgid "Allow"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:214
+#: includes/Admin/SettingsPage.php:226
 msgid "Block"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:221
+#: includes/Admin/SettingsPage.php:233
 msgid "Save changes"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:233
+#: includes/Admin/SettingsPage.php:253
 msgid "Settings were not saved. Fix the following fields:"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:247
+#: includes/Admin/SettingsPage.php:267
 msgid "Merchant"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:248
-msgid "Used when they cannot be read from WooCommerce. You declare this data to Google — enter it in line with your store terms."
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:253
-msgid "Default brand"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:255
-msgid "Used for products without their own brand. Empty means no default brand."
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:259
-msgid "Return policy"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:261
-msgid "Declare a return policy"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:261
-msgid "Add the return policy to product offers"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:262
-msgid "Return window (days)"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:262
-msgid "0 means returns are not accepted."
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:265
-msgid "Return costs"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:271
-msgid "Paid by the customer"
+#: includes/Admin/SettingsPage.php:269
+msgid "Merchant fields work with a WooCommerce store."
 msgstr ""
 
 #: includes/Admin/SettingsPage.php:272
-msgid "Free returns"
+msgid "Used when they cannot be read from WooCommerce. You declare this data to Google — enter it in line with your store terms."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:276
-msgid "Two-letter ISO country code, for example PL. Empty means no policy is emitted."
+#: includes/Admin/SettingsPage.php:277
+msgid "Default brand"
 msgstr ""
 
 #: includes/Admin/SettingsPage.php:279
-msgid "Return method"
+msgid "Used for products without their own brand. Empty means no default brand."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:283
+msgid "Return policy"
 msgstr ""
 
 #: includes/Admin/SettingsPage.php:285
-msgid "By mail"
+msgid "Declare a return policy"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:285
+msgid "Add the return policy to product offers"
 msgstr ""
 
 #: includes/Admin/SettingsPage.php:286
-msgid "In store"
+msgid "Return window (days)"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:287
-msgid "By mail or in store"
+#: includes/Admin/SettingsPage.php:286
+msgid "0 means returns are not accepted."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:293
-msgid "Fallback shipping"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:295
-msgid "Declare fallback shipping"
+#: includes/Admin/SettingsPage.php:289
+msgid "Return costs"
 msgstr ""
 
 #: includes/Admin/SettingsPage.php:295
-msgid "Add shipping details when WooCommerce zones do not provide them"
+msgid "Paid by the customer"
 msgstr ""
 
 #: includes/Admin/SettingsPage.php:296
+msgid "Free returns"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:300
+msgid "Two-letter ISO country code, for example PL. Empty means no policy is emitted."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:303
+msgid "Return method"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:309
+msgid "By mail"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:310
+msgid "In store"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:311
+msgid "By mail or in store"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:317
+msgid "Fallback shipping"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:319
+msgid "Declare fallback shipping"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:319
+msgid "Add shipping details when WooCommerce zones do not provide them"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:320
 msgid "Destination country"
 msgstr ""
 
 #. translators: %s: shop currency code, e.g. PLN
-#: includes/Admin/SettingsPage.php:300
+#: includes/Admin/SettingsPage.php:324
 #, php-format
 msgid "Shipping cost (%s)"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:302
+#: includes/Admin/SettingsPage.php:326
 msgid "Amount in the shop currency, up to 2 decimal places, for example 12.50. 0.00 means free shipping."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:304
+#: includes/Admin/SettingsPage.php:328
 msgid "Handling time (days)"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:304
+#: includes/Admin/SettingsPage.php:328
 msgid "From – to, 0 to 30 days."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:305
+#: includes/Admin/SettingsPage.php:329
 msgid "Delivery time (days)"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:305
+#: includes/Admin/SettingsPage.php:329
 msgid "From – to, 0 to 60 days."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:355
+#: includes/Admin/SettingsPage.php:379
 msgid "Content schema"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:356
+#: includes/Admin/SettingsPage.php:380
 msgid "Product schema"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:357
+#: includes/Admin/SettingsPage.php:381
 msgid "robots.txt"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:358
+#: includes/Admin/SettingsPage.php:382
 msgid "llms.txt"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:362
+#: includes/Admin/SettingsPage.php:386
 msgid "Feature status"
 msgstr ""
 
 #. translators: %s: feature name, e.g. robots.txt
-#: includes/Admin/SettingsPage.php:370
+#: includes/Admin/SettingsPage.php:394
 #, php-format
 msgid "%s comes from a physical file in the site directory — Aktio Connector does not duplicate it."
 msgstr ""
 
 #. translators: 1: feature name, 2: plugin name
-#: includes/Admin/SettingsPage.php:373
+#: includes/Admin/SettingsPage.php:397
 #, php-format
 msgid "%1$s is provided by %2$s — Aktio Connector does not duplicate it."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:376
+#: includes/Admin/SettingsPage.php:400
 msgid "Unavailable (requires WooCommerce)."
 msgstr ""
 
 #. translators: %s: SEO plugin name
-#: includes/Admin/SettingsPage.php:379
+#: includes/Admin/SettingsPage.php:403
 #, php-format
 msgid "Aktio Connector adds AI-bot rules to the robots.txt generated by %s."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:381
+#: includes/Admin/SettingsPage.php:405
 msgid "Active — provided by Aktio Connector."
 msgstr ""
 
 #. translators: %s: list of SEO plugin names
-#: includes/Admin/SettingsPage.php:391
+#: includes/Admin/SettingsPage.php:415
 #, php-format
 msgid "Detected active SEO plugins: %s."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:398
+#: includes/Admin/SettingsPage.php:422
 msgid "Update log"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:400
+#: includes/Admin/SettingsPage.php:424
 msgid "No entries."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:404
+#: includes/Admin/SettingsPage.php:428
 msgid "Date (UTC)"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:404
+#: includes/Admin/SettingsPage.php:428
 msgid "Item"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:404
+#: includes/Admin/SettingsPage.php:428
 msgid "Version"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:404
+#: includes/Admin/SettingsPage.php:428
 msgid "Result"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:404
+#: includes/Admin/SettingsPage.php:428
 msgid "By"
 msgstr ""
 
@@ -344,50 +348,56 @@ msgstr ""
 msgid "Anonymous"
 msgstr ""
 
+#. translators: %s: field path, e.g. merchant.retrun_policy
+#: includes/Settings.php:202
+#, php-format
+msgid "%s is not a known field."
+msgstr ""
+
 #. translators: %s: field path, e.g. merchant.shipping
-#: includes/Settings.php:182
+#: includes/Settings.php:205
 #, php-format
 msgid "%s must be an object."
 msgstr ""
 
 #. translators: %s: field path
-#: includes/Settings.php:185
+#: includes/Settings.php:208
 #, php-format
 msgid "%s must be true or false."
 msgstr ""
 
 #. translators: 1: field path, 2: minimum, 3: maximum
-#: includes/Settings.php:188
+#: includes/Settings.php:211
 #, php-format
 msgid "%1$s must be an integer from %2$d to %3$d."
 msgstr ""
 
 #. translators: 1: field path, 2: allowed values
-#: includes/Settings.php:191
+#: includes/Settings.php:214
 #, php-format
 msgid "%1$s must be one of: %2$s."
 msgstr ""
 
 #. translators: %s: field path
-#: includes/Settings.php:194
+#: includes/Settings.php:217
 #, php-format
 msgid "%s must be a two-letter uppercase ISO country code (for example PL) or an empty string."
 msgstr ""
 
 #. translators: %s: field path
-#: includes/Settings.php:197
+#: includes/Settings.php:220
 #, php-format
 msgid "%s must be a non-negative decimal amount with at most 2 decimal places and up to 10 characters (for example 12.50)."
 msgstr ""
 
 #. translators: 1: field path, 2: minimum, 3: maximum
-#: includes/Settings.php:200
+#: includes/Settings.php:223
 #, php-format
 msgid "%1$s must be a pair [min, max] of integers from %2$d to %3$d, with min not greater than max."
 msgstr ""
 
 #. translators: 1: field path, 2: maximum length
-#: includes/Settings.php:203
+#: includes/Settings.php:226
 #, php-format
 msgid "%1$s must be a string of at most %2$d characters."
 msgstr ""

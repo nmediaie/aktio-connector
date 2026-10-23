@@ -74,6 +74,8 @@ class RestVisibilityTest extends WP_UnitTestCase {
 			'min>max'            => array( array( 'merchant' => array( 'shipping' => array( 'transit_days' => array( 5, 2 ) ) ) ), 'merchant.shipping.transit_days' ),
 			'bad country'        => array( array( 'merchant' => array( 'shipping' => array( 'country' => 'Polska' ) ) ), 'merchant.shipping.country' ),
 			'bad cost'           => array( array( 'merchant' => array( 'shipping' => array( 'cost' => '12,5 zl' ) ) ), 'merchant.shipping.cost' ),
+			'unknown top key'    => array( array( 'merchant' => array( 'retrun_policy' => array( 'days' => 5 ) ) ), 'merchant.retrun_policy' ),
+			'unknown nested key' => array( array( 'merchant' => array( 'shipping' => array( 'costt' => '5.00' ) ) ), 'merchant.shipping.costt' ),
 			'bad type'           => array( array( 'merchant' => array( 'return_policy' => array( 'enabled' => 'true' ) ) ), 'merchant.return_policy.enabled' ),
 		);
 	}
@@ -92,5 +94,22 @@ class RestVisibilityTest extends WP_UnitTestCase {
 		$this->assertSame( 'aktio_invalid_params', $res->get_data()['code'] );
 		$this->assertStringContainsString( $field, $res->get_data()['message'] );
 		$this->assertSame( $before, get_option( \AktioConnector\Settings::OPTION ) );
+	}
+
+	public function test_post_visibility_unknown_company_key_still_ignored() {
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
+		$res = $this->post( array( 'company' => array( 'nonsense' => 'x', 'name' => 'Acme' ) ) );
+		$this->assertSame( 200, $res->get_status() );
+		$this->assertSame( 'Acme', $res->get_data()['settings']['company']['name'] );
+	}
+
+	public function test_get_visibility_shows_effective_country_following_store() {
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
+		update_option( 'woocommerce_default_country', 'PL:DS' );
+		$this->post( array( 'bots' => array( 'GPTBot' => 'block' ) ) );
+		update_option( 'woocommerce_default_country', 'DE' );
+		$m = rest_do_request( new WP_REST_Request( 'GET', '/aktio/v1/visibility' ) )->get_data()['settings']['merchant'];
+		$this->assertSame( 'DE', $m['return_policy']['country'] );
+		$this->assertSame( 'DE', $m['shipping']['country'] );
 	}
 }

@@ -47,11 +47,11 @@ class Settings {
 	}
 
 	/**
-	 * Domyślne pola sprzedawcy: deklaracje wobec Google są domyślnie wyłączone,
-	 * kraj podpowiadamy z ustawień sklepu WooCommerce.
+	 * Domyślne pola sprzedawcy: deklaracje wobec Google są domyślnie wyłączone.
+	 * Kraj '' = „kraj sklepu WooCommerce” — rozwiązywany przy odczycie (get()), nie zamrażany w opcji.
 	 */
 	private static function merchant_defaults(): array {
-		$country = self::shop_country();
+		$country = '';
 		return array(
 			'default_brand' => '',
 			'return_policy' => array(
@@ -74,16 +74,35 @@ class Settings {
 	/**
 	 * Kraj sklepu WooCommerce (część przed ':' w woocommerce_default_country) albo ''.
 	 */
-	private static function shop_country(): string {
+	public static function shop_country(): string {
 		$raw  = get_option( 'woocommerce_default_country', '' );
 		$code = is_string( $raw ) ? strtoupper( trim( explode( ':', $raw )[0] ) ) : '';
 		return 1 === preg_match( '/^[A-Z]{2}$/', $code ) ? $code : '';
 	}
 
 	/**
-	 * Zapisane ustawienia scalone z domyślnymi.
+	 * Zapisane ustawienia scalone z domyślnymi; pusty kraj w polach sprzedawcy
+	 * oznacza aktualny kraj sklepu WooCommerce (rozwiązywany przy każdym odczycie).
 	 */
 	public static function get(): array {
+		return self::resolve_countries( self::get_raw() );
+	}
+
+	/** Pusty kraj zwrotów/wysyłki → kraj sklepu (albo '' gdy sklep go nie ma). */
+	private static function resolve_countries( array $settings ): array {
+		$shop = self::shop_country();
+		foreach ( array( 'return_policy', 'shipping' ) as $section ) {
+			if ( '' === $settings['merchant'][ $section ]['country'] ) {
+				$settings['merchant'][ $section ]['country'] = $shop;
+			}
+		}
+		return $settings;
+	}
+
+	/**
+	 * Surowe ustawienia (bez rozwiązania pustego kraju) — baza dla update().
+	 */
+	private static function get_raw(): array {
 		$defaults = self::defaults();
 		$stored   = get_option( self::OPTION, array() );
 		if ( ! is_array( $stored ) ) {
@@ -109,7 +128,7 @@ class Settings {
 	 * Częściowa aktualizacja: sanityzuje wejście, zapisuje i zwraca całość.
 	 */
 	public static function update( array $partial ): array {
-		$current = self::get();
+		$current = self::get_raw();
 		$merged  = self::merge( $current, $partial );
 
 		// Zapisujemy tylko to, co ustawił użytkownik: nazwa z witryny nie jest zamrażana.
@@ -124,6 +143,7 @@ class Settings {
 		if ( '' === $merged['company']['name'] ) {
 			$merged['company']['name'] = (string) get_bloginfo( 'name' );
 		}
+		$merged = self::resolve_countries( $merged );
 		do_action( 'aktio_connector_settings_updated', $merged );
 		return $merged;
 	}
@@ -177,6 +197,9 @@ class Settings {
 
 	private static function field_message( string $kind, string $field, ...$args ): string {
 		switch ( $kind ) {
+			case 'unknown':
+				/* translators: %s: field path, e.g. merchant.retrun_policy */
+				return sprintf( __( '%s is not a known field.', 'aktio-connector' ), $field );
 			case 'object':
 				/* translators: %s: field path, e.g. merchant.shipping */
 				return sprintf( __( '%s must be an object.', 'aktio-connector' ), $field );
@@ -206,12 +229,15 @@ class Settings {
 
 	/**
 	 * Nakłada poprawne pola `merchant` z wejścia na $cur. Zwraca [wynik, błędy]:
-	 * niepoprawne pola są pomijane (zostaje poprzednia wartość) i zgłaszane w błędach.
-	 * Nieznane klucze są ignorowane (jak w company i bots).
+	 * niepoprawne pola i nieznane klucze (na każdym poziomie) są pomijane i zgłaszane
+	 * w błędach — literówka w danych deklarowanych wobec Google nie może zniknąć po cichu.
+	 * Marka domyślna przechodzi przez sanitize_text_field() (tagi usuwane, białe znaki przycinane).
 	 */
 	private static function merchant_apply( array $in, array $cur ): array {
 		$out    = $cur;
 		$errors = array();
+
+		self::unknown_keys( $in, array( 'default_brand', 'return_policy', 'shipping' ), 'merchant', $errors );
 
 		if ( array_key_exists( 'default_brand', $in ) ) {
 			$brand = $in['default_brand'];
@@ -227,6 +253,7 @@ class Settings {
 				$errors['merchant.return_policy'] = self::field_message( 'object', 'merchant.return_policy' );
 			} else {
 				$rp = $in['return_policy'];
+				self::unknown_keys( $rp, array( 'enabled', 'days', 'fees', 'country', 'method' ), 'merchant.return_policy', $errors );
 				self::apply_bool( $rp, 'enabled', 'merchant.return_policy', $out['return_policy'], $errors );
 				self::apply_int( $rp, 'days', 'merchant.return_policy', 0, 365, $out['return_policy'], $errors );
 				self::apply_enum( $rp, 'fees', 'merchant.return_policy', self::RETURN_FEES, $out['return_policy'], $errors );
@@ -240,6 +267,7 @@ class Settings {
 				$errors['merchant.shipping'] = self::field_message( 'object', 'merchant.shipping' );
 			} else {
 				$sh = $in['shipping'];
+				self::unknown_keys( $sh, array( 'enabled', 'country', 'cost', 'handling_days', 'transit_days' ), 'merchant.shipping', $errors );
 				self::apply_bool( $sh, 'enabled', 'merchant.shipping', $out['shipping'], $errors );
 				self::apply_country( $sh, 'merchant.shipping', $out['shipping'], $errors );
 				if ( array_key_exists( 'cost', $sh ) ) {
@@ -255,6 +283,15 @@ class Settings {
 			}
 		}
 		return array( $out, $errors );
+	}
+
+	private static function unknown_keys( array $in, array $allowed, string $path, array &$errors ): void {
+		foreach ( array_keys( $in ) as $key ) {
+			if ( ! in_array( $key, $allowed, true ) ) {
+				$field            = $path . '.' . $key;
+				$errors[ $field ] = self::field_message( 'unknown', $field );
+			}
+		}
 	}
 
 	private static function length( string $value ): int {

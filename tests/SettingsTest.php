@@ -145,11 +145,35 @@ class SettingsTest extends WP_UnitTestCase {
 		$this->assertSame( 'Marka', $s['merchant']['default_brand'] );
 	}
 
-	public function test_merchant_can_clear_brand_and_country() {
+	public function test_merchant_can_clear_brand_and_country_back_to_store_country() {
+		update_option( 'woocommerce_default_country', 'IE' );
 		Settings::update( array( 'merchant' => array( 'default_brand' => 'X', 'return_policy' => array( 'country' => 'PL' ) ) ) );
+		$this->assertSame( 'PL', Settings::get()['merchant']['return_policy']['country'] );
 		$s = Settings::update( array( 'merchant' => array( 'default_brand' => '', 'return_policy' => array( 'country' => '' ) ) ) );
 		$this->assertSame( '', $s['merchant']['default_brand'] );
-		$this->assertSame( '', $s['merchant']['return_policy']['country'] );
+		$this->assertSame( 'IE', $s['merchant']['return_policy']['country'] );
+		$this->assertSame( '', get_option( Settings::OPTION )['merchant']['return_policy']['country'] );
+	}
+
+	public function test_unset_country_is_not_frozen_and_follows_store_country() {
+		update_option( 'woocommerce_default_country', 'PL:DS' );
+		Settings::update( array( 'bots' => array( 'GPTBot' => 'block' ) ) );
+		$stored = get_option( Settings::OPTION );
+		$this->assertSame( '', $stored['merchant']['return_policy']['country'] );
+		$this->assertSame( '', $stored['merchant']['shipping']['country'] );
+		$this->assertSame( 'PL', Settings::get()['merchant']['shipping']['country'] );
+
+		update_option( 'woocommerce_default_country', 'DE' );
+		$m = Settings::get()['merchant'];
+		$this->assertSame( 'DE', $m['return_policy']['country'] );
+		$this->assertSame( 'DE', $m['shipping']['country'] );
+
+		// Własny kraj się nie zmienia; drugi dalej podąża za sklepem.
+		Settings::update( array( 'merchant' => array( 'shipping' => array( 'country' => 'FR' ) ) ) );
+		update_option( 'woocommerce_default_country', 'IT' );
+		$m = Settings::get()['merchant'];
+		$this->assertSame( 'FR', $m['shipping']['country'] );
+		$this->assertSame( 'IT', $m['return_policy']['country'] );
 	}
 
 	public function merchant_invalid_provider(): array {
@@ -184,6 +208,9 @@ class SettingsTest extends WP_UnitTestCase {
 			'brand not string'     => array( array( 'default_brand' => array( 'x' ) ), 'merchant.default_brand' ),
 			'return_policy scalar' => array( array( 'return_policy' => 'tak' ), 'merchant.return_policy' ),
 			'shipping scalar'      => array( array( 'shipping' => 5 ), 'merchant.shipping' ),
+			'unknown top key'      => array( array( 'retrun_policy' => array( 'days' => 5 ) ), 'merchant.retrun_policy' ),
+			'unknown rp key'       => array( array( 'return_policy' => array( 'day' => 5 ) ), 'merchant.return_policy.day' ),
+			'unknown shipping key' => array( array( 'shipping' => array( 'price' => '5.00' ) ), 'merchant.shipping.price' ),
 		);
 	}
 
@@ -210,6 +237,18 @@ class SettingsTest extends WP_UnitTestCase {
 		$m['return_policy']['days'] = 365;
 		$m['shipping']['cost']      = '1234567.89';
 		$this->assertSame( array(), Settings::merchant_errors( array( 'merchant' => $m ) ) );
+	}
+
+	public function test_unknown_key_next_to_valid_ones_blocks_via_errors_and_valid_siblings_listed_only_once() {
+		$errors = Settings::merchant_errors( array( 'merchant' => array( 'default_brand' => 'Ok', 'shipping' => array( 'cost' => '5.00', 'extra' => 1 ) ) ) );
+		$this->assertSame( array( 'merchant.shipping.extra' ), array_keys( $errors ) );
+	}
+
+	public function test_unknown_company_and_bots_keys_still_ignored() {
+		$s = Settings::update( array( 'company' => array( 'nonsense' => 'x', 'phone' => '1' ), 'bots' => array( 'EvilBot' => 'block' ) ) );
+		$this->assertSame( '1', $s['company']['phone'] );
+		$this->assertArrayNotHasKey( 'EvilBot', $s['bots'] );
+		$this->assertSame( array(), Settings::merchant_errors( array( 'company' => array( 'nonsense' => 'x' ) ) ) );
 	}
 
 	public function test_merchant_errors_without_merchant_key_is_empty() {

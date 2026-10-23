@@ -20,6 +20,9 @@ class SettingsPage {
 	const ACTION = 'aktio_connector_save';
 	const NONCE  = 'aktio_connector_save';
 
+	/** Szew dla testów: ekran zachowuje się, jakby WooCommerce nie było. */
+	public static $assume_no_woocommerce = false;
+
 	public static function register(): void {
 		add_action( 'admin_menu', array( __CLASS__, 'add_menu' ) );
 		add_action( 'admin_post_' . self::ACTION, array( __CLASS__, 'handle_save' ) );
@@ -109,8 +112,17 @@ class SettingsPage {
 			}
 			return array_map( $int, $value );
 		};
-		$country = static function ( $value ) {
-			return is_string( $value ) ? strtoupper( trim( $value ) ) : $value;
+		// Kraj równy krajowi sklepu, gdy w opcji nie ustawiono własnego, zostaje pusty
+		// („kraj sklepu”) — zapis ekranu nie zamraża kraju, więc zmiana kraju sklepu działa dalej.
+		$stored  = get_option( Settings::OPTION, array() );
+		$country = static function ( $value, string $section ) use ( $stored ) {
+			if ( ! is_string( $value ) ) {
+				return $value;
+			}
+			$value  = strtoupper( trim( $value ) );
+			$own    = is_array( $stored ) && isset( $stored['merchant'][ $section ]['country'] ) ? $stored['merchant'][ $section ]['country'] : '';
+			$follow = ( '' === $own || ! is_string( $own ) ) && '' !== $value && Settings::shop_country() === $value;
+			return $follow ? '' : $value;
 		};
 
 		$out = array();
@@ -132,7 +144,7 @@ class SettingsPage {
 				}
 			}
 			if ( array_key_exists( 'country', $rp ) ) {
-				$new['country'] = $country( $rp['country'] );
+				$new['country'] = $country( $rp['country'], 'return_policy' );
 			}
 			$out['return_policy'] = $new;
 		}
@@ -143,7 +155,7 @@ class SettingsPage {
 				$new['enabled'] = '1' === $sh['enabled'];
 			}
 			if ( array_key_exists( 'country', $sh ) ) {
-				$new['country'] = $country( $sh['country'] );
+				$new['country'] = $country( $sh['country'], 'shipping' );
 			}
 			if ( array_key_exists( 'cost', $sh ) ) {
 				$new['cost'] = is_string( $sh['cost'] ) ? str_replace( ',', '.', trim( $sh['cost'] ) ) : $sh['cost'];
@@ -226,12 +238,20 @@ class SettingsPage {
 		echo '</div>';
 	}
 
+	/** Pola sprzedawcy mają sens tylko ze sklepem; żadnej funkcji WC nie wołamy bez tej bramki. */
+	private static function woocommerce_available(): bool {
+		return ! self::$assume_no_woocommerce && class_exists( 'WooCommerce' ) && function_exists( 'get_woocommerce_currency' );
+	}
+
 	/** Komunikat błędu walidacji (ustawienia nie zostały zapisane). */
 	private static function render_errors(): void {
 		$errors = get_transient( self::errors_key() );
 		delete_transient( self::errors_key() );
+		if ( ! is_array( $errors ) || ! $errors ) {
+			return; // Odświeżenie strony po wyświetleniu błędów — bez pustej ramki.
+		}
 		echo '<div class="notice notice-error"><p><strong>' . esc_html__( 'Settings were not saved. Fix the following fields:', 'aktio-connector' ) . '</strong></p><ul>';
-		foreach ( is_array( $errors ) ? $errors : array() as $message ) {
+		foreach ( $errors as $message ) {
 			echo '<li>' . esc_html( (string) $message ) . '</li>';
 		}
 		echo '</ul></div>';
@@ -245,6 +265,10 @@ class SettingsPage {
 		$sh = $merchant['shipping'];
 
 		echo '<h2>' . esc_html__( 'Merchant', 'aktio-connector' ) . '</h2>';
+		if ( ! self::woocommerce_available() ) {
+			echo '<p class="description">' . esc_html__( 'Merchant fields work with a WooCommerce store.', 'aktio-connector' ) . '</p>';
+			return;
+		}
 		echo '<p class="description">' . esc_html__( 'Used when they cannot be read from WooCommerce. You declare this data to Google — enter it in line with your store terms.', 'aktio-connector' ) . '</p>';
 
 		echo '<table class="form-table" role="presentation"><tbody>';
