@@ -186,4 +186,144 @@ class SeoFieldsTest extends WP_UnitTestCase {
 		Fields::enqueue_panel();
 		$this->assertFalse( wp_script_is( 'aktio-seo-panel', 'enqueued' ) );
 	}
+
+	private function post_fields( string $title, string $description ): void {
+		$_POST['aktio_seo_title']       = $title;
+		$_POST['aktio_seo_description'] = $description;
+		$_POST['aktio_seo_nonce']       = wp_create_nonce( Fields::NONCE_ACTION );
+	}
+
+	public function test_quick_edit_column_box_and_save() {
+		$id = self::factory()->post->create();
+		update_post_meta( $id, '_aktio_seo_title', 'Stary "tytuł"' );
+
+		$columns = apply_filters( 'manage_post_posts_columns', array( 'title' => 'Tytuł' ) );
+		$this->assertArrayHasKey( 'aktio_seo', $columns );
+
+		ob_start();
+		do_action( 'manage_post_posts_custom_column', 'aktio_seo', $id );
+		$cell = (string) ob_get_clean();
+		$this->assertStringContainsString( 'data-title="Stary &quot;tytuł&quot;"', $cell );
+		$this->assertStringContainsString( 'data-description=""', $cell );
+
+		ob_start();
+		do_action( 'quick_edit_custom_box', 'aktio_seo', 'post', '' );
+		$box = (string) ob_get_clean();
+		$this->assertStringContainsString( 'name="aktio_seo_title"', $box );
+		$this->assertStringContainsString( 'name="aktio_seo_description"', $box );
+		$this->assertStringContainsString( 'name="aktio_seo_nonce"', $box );
+
+		ob_start();
+		do_action( 'quick_edit_custom_box', 'categories', 'post', '' );
+		do_action( 'quick_edit_custom_box', 'aktio_seo', 'attachment', '' );
+		$this->assertSame( '', (string) ob_get_clean() );
+
+		// Zapis szybkiej edycji idzie przez save_post z nonce z panelu.
+		$this->post_fields( 'Z szybkiej edycji', 'Opis z szybkiej edycji' );
+		wp_update_post( array( 'ID' => $id, 'post_title' => 'Nowy tytuł wpisu' ) );
+		$this->assertSame( 'Z szybkiej edycji', get_post_meta( $id, '_aktio_seo_title', true ) );
+		$this->assertSame( 'Opis z szybkiej edycji', get_post_meta( $id, '_aktio_seo_description', true ) );
+
+		// Pusta wartość usuwa pole; brak pól w żądaniu (np. edycja zbiorcza) niczego nie rusza.
+		$this->post_fields( '', 'Opis z szybkiej edycji' );
+		wp_update_post( array( 'ID' => $id, 'post_title' => 'Jeszcze inny' ) );
+		$this->assertSame( '', get_post_meta( $id, '_aktio_seo_title', true ) );
+		unset( $_POST['aktio_seo_title'], $_POST['aktio_seo_description'] );
+		wp_update_post( array( 'ID' => $id, 'post_title' => 'Bez pól' ) );
+		$this->assertSame( 'Opis z szybkiej edycji', get_post_meta( $id, '_aktio_seo_description', true ) );
+	}
+
+	public function test_quick_edit_hidden_by_default_and_absent_with_foreign_seo_plugin() {
+		set_current_screen( 'edit-post' );
+		$hidden = apply_filters( 'default_hidden_columns', array(), get_current_screen() );
+		$this->assertContains( 'aktio_seo', $hidden );
+
+		$this->active = true;
+		$this->assertArrayNotHasKey( 'aktio_seo', apply_filters( 'manage_post_posts_columns', array() ) );
+		ob_start();
+		do_action( 'quick_edit_custom_box', 'aktio_seo', 'post', '' );
+		$this->assertSame( '', (string) ob_get_clean() );
+
+		$id = self::factory()->post->create();
+		$this->post_fields( 'Obcy', 'Obcy opis' );
+		wp_update_post( array( 'ID' => $id, 'post_title' => 'X' ) );
+		$this->assertSame( '', get_post_meta( $id, '_aktio_seo_title', true ) );
+	}
+
+	public function test_quick_edit_script_enqueued_only_on_owned_post_list() {
+		wp_dequeue_script( 'aktio-seo-quickedit' );
+		set_current_screen( 'edit-post' );
+		Fields::enqueue_quick_edit( 'post.php' );
+		$this->assertFalse( wp_script_is( 'aktio-seo-quickedit', 'enqueued' ) );
+		Fields::enqueue_quick_edit( 'edit.php' );
+		$this->assertTrue( wp_script_is( 'aktio-seo-quickedit', 'enqueued' ) );
+
+		wp_dequeue_script( 'aktio-seo-quickedit' );
+		$this->active = true;
+		Fields::enqueue_quick_edit( 'edit.php' );
+		$this->assertFalse( wp_script_is( 'aktio-seo-quickedit', 'enqueued' ) );
+		$this->assertFileExists( dirname( __DIR__ ) . '/assets/aktio-seo-quickedit.js' );
+	}
+
+	public function test_term_screens_render_and_save() {
+		foreach ( array( 'category', 'post_tag' ) as $taxonomy ) {
+			$term_id = self::factory()->term->create( array( 'taxonomy' => $taxonomy, 'name' => 'Termin ' . $taxonomy ) );
+			update_term_meta( $term_id, '_aktio_seo_title', 'Tytuł "terminu"' );
+
+			ob_start();
+			do_action( $taxonomy . '_edit_form_fields', get_term( $term_id ), $taxonomy );
+			$edit = (string) ob_get_clean();
+			$this->assertStringContainsString( 'value="Tytuł &quot;terminu&quot;"', $edit, $taxonomy );
+			$this->assertStringContainsString( 'name="aktio_seo_description"', $edit, $taxonomy );
+			$this->assertStringContainsString( 'name="aktio_seo_nonce"', $edit, $taxonomy );
+
+			ob_start();
+			do_action( $taxonomy . '_add_form_fields', $taxonomy );
+			$add = (string) ob_get_clean();
+			$this->assertStringContainsString( 'name="aktio_seo_title"', $add, $taxonomy );
+
+			// Bez nonce — bez zapisu; z nonce — zapis, pusta wartość kasuje.
+			unset( $_POST['aktio_seo_nonce'] );
+			$_POST['aktio_seo_title']       = 'Bez nonce';
+			$_POST['aktio_seo_description'] = 'Opis terminu';
+			wp_update_term( $term_id, $taxonomy, array( 'name' => 'Zmieniony ' . $taxonomy ) );
+			$this->assertSame( 'Tytuł "terminu"', get_term_meta( $term_id, '_aktio_seo_title', true ), $taxonomy );
+
+			$this->post_fields( 'Nowy tytuł terminu', 'Opis terminu' );
+			wp_update_term( $term_id, $taxonomy, array( 'name' => 'Zmieniony 2 ' . $taxonomy ) );
+			$this->assertSame( 'Nowy tytuł terminu', get_term_meta( $term_id, '_aktio_seo_title', true ), $taxonomy );
+			$this->assertSame( 'Opis terminu', get_term_meta( $term_id, '_aktio_seo_description', true ), $taxonomy );
+
+			$this->post_fields( '', 'Opis terminu' );
+			wp_update_term( $term_id, $taxonomy, array( 'name' => 'Zmieniony 3 ' . $taxonomy ) );
+			$this->assertSame( '', get_term_meta( $term_id, '_aktio_seo_title', true ), $taxonomy );
+		}
+	}
+
+	public function test_term_creation_saves_fields_from_add_form() {
+		$this->post_fields( 'Tytuł nowej kategorii', 'Opis nowej kategorii' );
+		$term = wp_insert_term( 'Nowa kategoria SEO', 'category' );
+		$this->assertSame( 'Tytuł nowej kategorii', get_term_meta( $term['term_id'], '_aktio_seo_title', true ) );
+		$this->assertSame( 'Opis nowej kategorii', get_term_meta( $term['term_id'], '_aktio_seo_description', true ) );
+	}
+
+	public function test_term_save_requires_capability_and_ownership() {
+		$term_id = self::factory()->term->create( array( 'taxonomy' => 'category' ) );
+
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'subscriber' ) ) );
+		$this->post_fields( 'Subskrybent', 'Opis' );
+		Fields::save_term( $term_id );
+		$this->assertSame( '', get_term_meta( $term_id, '_aktio_seo_title', true ) );
+
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
+		$this->active = true;
+		$this->post_fields( 'Obca wtyczka', 'Opis' );
+		Fields::save_term( $term_id );
+		$this->assertSame( '', get_term_meta( $term_id, '_aktio_seo_title', true ) );
+
+		ob_start();
+		do_action( 'category_edit_form_fields', get_term( $term_id ), 'category' );
+		do_action( 'category_add_form_fields', 'category' );
+		$this->assertSame( '', (string) ob_get_clean() );
+	}
 }

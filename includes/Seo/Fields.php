@@ -32,8 +32,21 @@ class Fields {
 		add_action( 'add_meta_boxes', array( __CLASS__, 'add_box' ) );
 		add_action( 'save_post', array( __CLASS__, 'save_box' ), 10, 2 );
 		add_action( 'enqueue_block_editor_assets', array( __CLASS__, 'enqueue_panel' ) );
+		// Szybka edycja: ukryta kolumna „SEO” uruchamia quick_edit_custom_box; dane trafiają do wiersza przez data-*.
+		add_filter( 'default_hidden_columns', array( __CLASS__, 'hide_column' ), 10, 2 );
+		add_action( 'quick_edit_custom_box', array( __CLASS__, 'quick_edit_box' ), 10, 2 );
+		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue_quick_edit' ) );
 		foreach ( self::POST_TYPES as $type ) {
 			add_filter( 'rest_pre_insert_' . $type, array( __CLASS__, 'guard_rest' ), 10, 2 );
+			add_filter( 'manage_' . $type . '_posts_columns', array( __CLASS__, 'add_column' ) );
+			add_action( 'manage_' . $type . '_posts_custom_column', array( __CLASS__, 'render_column' ), 10, 2 );
+		}
+		// Ekrany terminów (dodawanie i edycja): te same pola co przy wpisach.
+		foreach ( self::TAXONOMIES as $taxonomy ) {
+			add_action( $taxonomy . '_add_form_fields', array( __CLASS__, 'render_term_add' ) );
+			add_action( $taxonomy . '_edit_form_fields', array( __CLASS__, 'render_term_edit' ) );
+			add_action( 'created_' . $taxonomy, array( __CLASS__, 'save_term' ) );
+			add_action( 'edited_' . $taxonomy, array( __CLASS__, 'save_term' ) );
 		}
 		// Kontroler termów rdzenia ignoruje WP_Error z rest_pre_insert_*, więc termy blokujemy przed callbackiem trasy.
 		add_filter( 'rest_request_before_callbacks', array( __CLASS__, 'guard_terms' ), 10, 3 );
@@ -205,20 +218,171 @@ class Fields {
 			|| wp_is_post_revision( $post_id ) || ! current_user_can( 'edit_post', $post_id ) ) {
 			return;
 		}
+		self::store_posted( 'post', (int) $post_id );
+	}
+
+	/**
+	 * Zapisuje przesłane pola (tylko te obecne w $_POST i będące własnością Aktio); puste kasują meta.
+	 * Nonce i uprawnienia sprawdza wołający.
+	 *
+	 * @param string $kind 'post' albo 'term'.
+	 * @param int    $id   ID wpisu lub terminu.
+	 */
+	private static function store_posted( string $kind, int $id ): void {
 		foreach ( array(
 			'aktio_seo_title'       => self::TITLE_KEY,
 			'aktio_seo_description' => self::DESC_KEY,
 		) as $field => $key ) {
-			if ( ! isset( $_POST[ $field ] ) || ! self::owns_key( $key ) ) {
+			if ( ! isset( $_POST[ $field ] ) || ! self::owns_key( $key ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce sprawdza wołający.
 				continue;
 			}
-			$value = self::sanitize( wp_unslash( $_POST[ $field ] ), $key );
+			$value = self::sanitize( wp_unslash( $_POST[ $field ] ), $key ); // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- sanitize() czyści wartość.
 			if ( '' === $value ) {
-				delete_post_meta( $post_id, $key );
+				'term' === $kind ? delete_term_meta( $id, $key ) : delete_post_meta( $id, $key );
+			} elseif ( 'term' === $kind ) {
+				update_term_meta( $id, $key, $value );
 			} else {
-				update_post_meta( $post_id, $key, $value );
+				update_post_meta( $id, $key, $value );
 			}
 		}
+	}
+
+	/**
+	 * Lista wpisów: kolumna „SEO” (domyślnie ukryta), potrzebna szybkiej edycji.
+	 *
+	 * @param mixed $columns Kolumny listy.
+	 */
+	public static function add_column( $columns ) {
+		if ( is_array( $columns ) && self::owns_any() ) {
+			$columns['aktio_seo'] = __( 'SEO (Aktio)', 'aktio-connector' );
+		}
+		return $columns;
+	}
+
+	/**
+	 * @param mixed $hidden Domyślnie ukryte kolumny.
+	 * @param mixed $screen Ekran.
+	 */
+	public static function hide_column( $hidden, $screen ) {
+		if ( is_array( $hidden ) && $screen instanceof \WP_Screen && 'edit' === $screen->base && in_array( $screen->post_type, self::POST_TYPES, true ) ) {
+			$hidden[] = 'aktio_seo';
+		}
+		return $hidden;
+	}
+
+	/**
+	 * Komórka kolumny: stan pól i ukryte dane dla szybkiej edycji.
+	 *
+	 * @param string $column  Kolumna.
+	 * @param int    $post_id ID wpisu.
+	 */
+	public static function render_column( $column, $post_id ): void {
+		if ( 'aktio_seo' !== $column ) {
+			return;
+		}
+		$post  = get_post( (int) $post_id );
+		$title = $post ? self::title_for( $post ) : '';
+		$desc  = $post ? self::description_for( $post ) : '';
+		echo '<span class="aktio-seo-data" data-title="' . esc_attr( $title ) . '" data-description="' . esc_attr( $desc ) . '">';
+		echo esc_html( '' !== $title || '' !== $desc ? '✓' : '—' );
+		echo '</span>';
+	}
+
+	/**
+	 * Pola w panelu szybkiej edycji (jedno wywołanie na kolumnę, więc reagujemy tylko na naszą).
+	 *
+	 * @param string $column    Kolumna.
+	 * @param string $post_type Typ wpisu.
+	 */
+	public static function quick_edit_box( $column, $post_type ): void {
+		if ( 'aktio_seo' !== $column || ! in_array( $post_type, self::POST_TYPES, true ) || ! self::owns_any() ) {
+			return;
+		}
+		echo '<fieldset class="inline-edit-col-right aktio-seo-quick-edit"><div class="inline-edit-col">';
+		wp_nonce_field( self::NONCE_ACTION, self::NONCE_FIELD, false );
+		if ( Detector::owns( 'title' ) ) {
+			echo '<label><span class="title">' . esc_html__( 'SEO title', 'aktio-connector' ) . '</span><span class="input-text-wrap"><input type="text" name="aktio_seo_title" maxlength="' . (int) self::TITLE_MAX . '" value="" /></span></label>';
+		}
+		if ( Detector::owns( 'meta_description' ) ) {
+			echo '<label><span class="title">' . esc_html__( 'SEO description', 'aktio-connector' ) . '</span><span class="input-text-wrap"><input type="text" name="aktio_seo_description" maxlength="' . (int) self::DESC_MAX . '" value="" /></span></label>';
+		}
+		echo '</div></fieldset>';
+	}
+
+	/**
+	 * Skrypt szybkiej edycji tylko na liście naszych typów wpisów.
+	 *
+	 * @param string $hook Ekran admina.
+	 */
+	public static function enqueue_quick_edit( $hook ): void {
+		if ( 'edit.php' !== $hook || ! self::owns_any() ) {
+			return;
+		}
+		$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
+		if ( ! $screen || ! in_array( $screen->post_type, self::POST_TYPES, true ) ) {
+			return;
+		}
+		wp_enqueue_script(
+			'aktio-seo-quickedit',
+			plugins_url( 'assets/aktio-seo-quickedit.js', AKTIO_CONNECTOR_FILE ),
+			array( 'jquery', 'inline-edit-post' ),
+			AKTIO_CONNECTOR_VERSION,
+			true
+		);
+	}
+
+	/**
+	 * Ekran „Dodaj nowy termin”.
+	 */
+	public static function render_term_add(): void {
+		if ( ! self::owns_any() ) {
+			return;
+		}
+		wp_nonce_field( self::NONCE_ACTION, self::NONCE_FIELD, false );
+		if ( Detector::owns( 'title' ) ) {
+			echo '<div class="form-field"><label for="aktio_seo_title">' . esc_html__( 'SEO title', 'aktio-connector' ) . '</label>';
+			echo '<input type="text" id="aktio_seo_title" name="aktio_seo_title" maxlength="' . (int) self::TITLE_MAX . '" value="" /></div>';
+		}
+		if ( Detector::owns( 'meta_description' ) ) {
+			echo '<div class="form-field"><label for="aktio_seo_description">' . esc_html__( 'SEO description', 'aktio-connector' ) . '</label>';
+			echo '<textarea id="aktio_seo_description" name="aktio_seo_description" rows="3" maxlength="' . (int) self::DESC_MAX . '"></textarea></div>';
+		}
+	}
+
+	/**
+	 * Ekran edycji terminu.
+	 *
+	 * @param \WP_Term $term Termin.
+	 */
+	public static function render_term_edit( $term ): void {
+		if ( ! $term instanceof \WP_Term || ! self::owns_any() ) {
+			return;
+		}
+		wp_nonce_field( self::NONCE_ACTION, self::NONCE_FIELD, false );
+		if ( Detector::owns( 'title' ) ) {
+			echo '<tr class="form-field"><th scope="row"><label for="aktio_seo_title">' . esc_html__( 'SEO title', 'aktio-connector' ) . '</label></th>';
+			echo '<td><input type="text" id="aktio_seo_title" name="aktio_seo_title" maxlength="' . (int) self::TITLE_MAX . '" value="' . esc_attr( self::title_for( $term ) ) . '" /></td></tr>';
+		}
+		if ( Detector::owns( 'meta_description' ) ) {
+			echo '<tr class="form-field"><th scope="row"><label for="aktio_seo_description">' . esc_html__( 'SEO description', 'aktio-connector' ) . '</label></th>';
+			echo '<td><textarea id="aktio_seo_description" name="aktio_seo_description" rows="3" maxlength="' . (int) self::DESC_MAX . '">' . esc_textarea( self::description_for( $term ) ) . '</textarea></td></tr>';
+		}
+	}
+
+	/**
+	 * Zapis terminu (created_* / edited_*): tylko z nonce, uprawnieniem edit_term i gdy Aktio jest właścicielem pola.
+	 *
+	 * @param int $term_id ID terminu.
+	 */
+	public static function save_term( $term_id ): void {
+		if ( ! isset( $_POST[ self::NONCE_FIELD ] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST[ self::NONCE_FIELD ] ) ), self::NONCE_ACTION ) ) {
+			return;
+		}
+		$term = get_term( (int) $term_id );
+		if ( ! $term instanceof \WP_Term || ! in_array( $term->taxonomy, self::TAXONOMIES, true ) || ! current_user_can( 'edit_term', (int) $term_id ) ) {
+			return;
+		}
+		self::store_posted( 'term', (int) $term_id );
 	}
 
 	/**
