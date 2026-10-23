@@ -82,12 +82,19 @@ class Metrics {
 	}
 
 	/**
-	 * Usuwa wiersze starsze niż 400 dni.
+	 * Usuwa wiersze starsze niż 400 dni oraz wygasłe transienty beaconu (bez zewnętrznego cache
+	 * obiektów zostają w wp_options, dopóki ktoś ich nie odczyta).
 	 */
 	public static function purge(): void {
 		global $wpdb;
 		$limit = gmdate( 'Y-m-d', time() - self::RETENTION * DAY_IN_SECONDS );
 		$wpdb->query( $wpdb->prepare( 'DELETE FROM ' . self::table() . ' WHERE day < %s', $limit ) ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+
+		$prefix  = '_transient_timeout_' . self::TRANSIENT;
+		$expired = $wpdb->get_col( $wpdb->prepare( "SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s AND option_value < %d LIMIT 1000", $wpdb->esc_like( $prefix ) . '%', time() ) ); // phpcs:ignore WordPress.DB
+		foreach ( (array) $expired as $name ) {
+			delete_transient( substr( (string) $name, strlen( '_transient_timeout_' ) ) );
+		}
 	}
 
 	/**

@@ -239,6 +239,19 @@ class MetricsTest extends WP_UnitTestCase {
 		$this->assertSame( 'ClaudeBot', $rows[0]['name'] );
 	}
 
+	public function test_purge_removes_expired_beacon_transients_only() {
+		set_transient( 'aktio_bc_stare', 1, 600 );
+		set_transient( 'aktio_bc_swieze', 1, 600 );
+		set_transient( 'inny_transient', 1, 600 );
+		update_option( '_transient_timeout_aktio_bc_stare', time() - 10 );
+		update_option( '_transient_timeout_inny_transient', time() - 10 );
+		Metrics::purge();
+		$this->assertFalse( get_option( '_transient_aktio_bc_stare' ) );
+		$this->assertFalse( get_option( '_transient_timeout_aktio_bc_stare' ) );
+		$this->assertSame( 1, (int) get_transient( 'aktio_bc_swieze' ) );
+		$this->assertSame( '1', (string) get_option( '_transient_inny_transient' ) );
+	}
+
 	public function test_daily_purge_cron_is_scheduled() {
 		wp_clear_scheduled_hook( Metrics::CRON );
 		Metrics::schedule();
@@ -254,6 +267,9 @@ class MetricsTest extends WP_UnitTestCase {
 
 	public function test_uninstall_drops_table_and_clears_crons() {
 		Metrics::schedule();
+		update_option( 'aktio_connector_cache_last_purge', gmdate( 'c' ), false );
+		update_option( 'aktio_connector_rewrite_version', 2, true );
+		set_transient( 'aktio_bc_zywe', 1, 600 );
 		if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
 			define( 'WP_UNINSTALL_PLUGIN', true );
 		}
@@ -268,8 +284,12 @@ class MetricsTest extends WP_UnitTestCase {
 		add_filter( 'query', $catch );
 		include dirname( __DIR__ ) . '/uninstall.php';
 		remove_filter( 'query', $catch );
+		wp_cache_flush(); // uninstall.php usuwa transienty surowym SQL-em, więc czyścimy cache opcji.
 		$this->assertFalse( wp_next_scheduled( Metrics::CRON ) );
 		$this->assertFalse( get_option( Metrics::SCHEMA_OPTION ) );
+		$this->assertFalse( get_option( 'aktio_connector_cache_last_purge' ) );
+		$this->assertFalse( get_option( 'aktio_connector_rewrite_version' ) );
+		$this->assertFalse( get_option( '_transient_aktio_bc_zywe' ) );
 		$this->assertTrue( $dropped );
 	}
 

@@ -17,6 +17,8 @@ delete_option( 'aktio_connector_indexnow_queue' );
 delete_option( 'aktio_connector_indexnow_log' );
 delete_option( 'aktio_connector_indexnow_last' );
 delete_option( 'aktio_connector_indexnow_sitemap' );
+delete_option( 'aktio_connector_rewrite_version' );
+delete_option( 'aktio_connector_cache_last_purge' );
 wp_clear_scheduled_hook( 'aktio_connector_indexnow' );
 
 // Pomiar AI: tabela metryk, wersja schematu, cron i ulotne transienty beaconu.

@@ -40,7 +40,8 @@ You edit everything under **Settings → Aktio Connector**. The screen also show
 **Privacy of AI visit measurement**
 
 * No cookies and no visitor identifiers are used.
-* To avoid counting the same visit many times, a short-lived HMAC (keyed hash) of the visitor's IP address is kept in a transient for 10 minutes. The IP address itself is never stored, and neither the hash nor the address is written to the database table or to any log.
+* To avoid counting the same visit many times, a short-lived HMAC (keyed hash) of the visitor's IP address and landing path is kept in a transient for 10 minutes. The transient is stored in the database (in the options table, unless the site uses a persistent object cache) and expires on its own; expired ones are cleaned up daily. The IP address itself is never stored, and neither the hash nor the address is written to the metrics table or to any log.
+* Behind Cloudflare or another reverse proxy the plugin sees the proxy's address instead of the visitor's, so different visitors to the same page can share one fingerprint within 10 minutes and be counted once. In that setup the referral numbers are an underestimate.
 * Counts are stored in the `aktio_metrics` table (day, kind, source name, landing path, count). Rows older than 400 days are deleted automatically.
 * At most 200 distinct landing paths are stored per day; further visits that day are counted without a path.
 * Only visits from bots and AI sources on the built-in list are counted. A visit from any other source is not recorded at all.
