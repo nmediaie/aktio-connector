@@ -27,6 +27,7 @@ require_once __DIR__ . '/includes/Rest.php';
 require_once __DIR__ . '/includes/Schema/Graph.php';
 require_once __DIR__ . '/includes/Schema/ContentSchema.php';
 require_once __DIR__ . '/includes/Schema/ProductSchema.php';
+require_once __DIR__ . '/includes/Seo/Head.php';
 require_once __DIR__ . '/includes/Crawlers.php';
 require_once __DIR__ . '/includes/Health.php';
 require_once __DIR__ . '/includes/Admin/SettingsPage.php';
@@ -35,6 +36,7 @@ require_once __DIR__ . '/includes/Admin/SettingsPage.php';
 \AktioConnector\Schema\Graph::register();
 \AktioConnector\Schema\ContentSchema::register();
 \AktioConnector\Schema\ProductSchema::register();
+\AktioConnector\Seo\Head::register();
 \AktioConnector\Crawlers::register();
 \AktioConnector\Updates::register();
 if ( is_admin() ) {
