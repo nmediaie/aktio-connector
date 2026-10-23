@@ -219,6 +219,109 @@ class IndexNowTest extends WP_UnitTestCase {
 		$this->assertIsArray( IndexNow::submit_sitemap() );
 	}
 
+	public function test_rules_flushed_once_when_rules_version_changes() {
+		global $wp_rewrite;
+		$wp_rewrite->set_permalink_structure( '/%postname%/' );
+		IndexNow::add_rewrite();
+		delete_option( 'rewrite_rules' );
+		delete_option( IndexNow::RULES_OPTION );
+
+		IndexNow::maybe_flush_rules();
+		$this->assertContains( '^([a-f0-9]{32})\.txt$', array_keys( (array) get_option( 'rewrite_rules' ) ) );
+		$this->assertSame( IndexNow::RULES_VERSION, (int) get_option( IndexNow::RULES_OPTION ) );
+
+		// Drugi raz nic nie robi: skasowane reguły nie są odtwarzane przez maybe_flush_rules().
+		delete_option( 'rewrite_rules' );
+		IndexNow::maybe_flush_rules();
+		$this->assertFalse( get_option( 'rewrite_rules' ) );
+	}
+
+	public function test_rules_flushed_when_indexnow_gets_enabled() {
+		global $wp_rewrite;
+		$wp_rewrite->set_permalink_structure( '/%postname%/' );
+		IndexNow::add_rewrite();
+		delete_option( 'rewrite_rules' );
+
+		$this->enable( false );
+		$this->assertFalse( get_option( 'rewrite_rules' ) );
+
+		$this->enable();
+		$this->assertContains( '^([a-f0-9]{32})\.txt$', array_keys( (array) get_option( 'rewrite_rules' ) ) );
+
+		// Ponowny zapis przy już włączonym module nie flushuje.
+		delete_option( 'rewrite_rules' );
+		$this->enable();
+		$this->assertFalse( get_option( 'rewrite_rules' ) );
+	}
+
+	public function test_rules_flushed_when_settings_option_is_created_enabled() {
+		global $wp_rewrite;
+		$wp_rewrite->set_permalink_structure( '/%postname%/' );
+		IndexNow::add_rewrite();
+		delete_option( Settings::OPTION );
+		delete_option( 'rewrite_rules' );
+		$this->enable();
+		$this->assertContains( '^([a-f0-9]{32})\.txt$', array_keys( (array) get_option( 'rewrite_rules' ) ) );
+	}
+
+	public function test_flush_keeps_queue_on_auth_errors_and_drops_it_on_other_client_errors() {
+		$this->enable();
+		foreach ( array( 401, 403, 429, 500 ) as $code ) {
+			update_option( IndexNow::QUEUE, array( home_url( '/a/' ) ), false );
+			$this->status = $code;
+			$this->assertSame( array( 'sent' => 0, 'code' => $code ), IndexNow::flush() );
+			$this->assertSame( array( home_url( '/a/' ) ), $this->queue(), (string) $code );
+		}
+		update_option( IndexNow::QUEUE, array( home_url( '/a/' ) ), false );
+		$this->status = 422;
+		IndexNow::flush();
+		$this->assertSame( array(), $this->queue() );
+	}
+
+	public function test_queue_is_capped_and_newest_urls_win() {
+		$this->enable();
+		$old = array();
+		for ( $i = 0; $i < IndexNow::QUEUE_MAX; $i++ ) {
+			$old[] = home_url( '/p' . $i . '/' );
+		}
+		update_option( IndexNow::QUEUE, $old, false );
+		IndexNow::queue( home_url( '/nowy/' ) );
+		$queue = $this->queue();
+		$this->assertCount( IndexNow::QUEUE_MAX, $queue );
+		$this->assertSame( home_url( '/nowy/' ), end( $queue ) );
+		$this->assertNotContains( home_url( '/p0/' ), $queue );
+		$this->assertContains( home_url( '/p1/' ), $queue );
+	}
+
+	public function test_sitemap_marker_set_only_after_success() {
+		$this->enable();
+		$this->status = 500;
+		$result       = IndexNow::submit_sitemap();
+		$this->assertSame( 0, $result['sent'] );
+		$this->assertSame( 0, (int) get_option( IndexNow::SITEMAP_LAST, 0 ) );
+
+		$this->status = 200;
+		$this->assertIsArray( IndexNow::submit_sitemap() );
+		$this->assertGreaterThan( 0, (int) get_option( IndexNow::SITEMAP_LAST, 0 ) );
+		$this->assertInstanceOf( WP_Error::class, IndexNow::submit_sitemap() );
+	}
+
+	public function test_submit_sitemap_skips_woocommerce_cart_checkout_account_pages() {
+		$this->enable();
+		$ids = array();
+		foreach ( array( 'cart', 'checkout', 'myaccount' ) as $page ) {
+			$ids[ $page ] = self::factory()->post->create( array( 'post_type' => 'page', 'post_title' => $page ) );
+			update_option( 'woocommerce_' . $page . '_page_id', $ids[ $page ] );
+		}
+		$normal = self::factory()->post->create( array( 'post_type' => 'page', 'post_title' => 'Kontakt' ) );
+		IndexNow::submit_sitemap();
+		$list = json_decode( $this->requests[0]['args']['body'], true )['urlList'];
+		$this->assertContains( get_permalink( $normal ), $list );
+		foreach ( $ids as $page => $id ) {
+			$this->assertNotContains( get_permalink( $id ), $list, $page );
+		}
+	}
+
 	public function test_log_keeps_last_50_newest_first() {
 		$this->enable();
 		for ( $i = 1; $i <= 55; $i++ ) {

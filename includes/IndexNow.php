@@ -15,21 +15,28 @@ defined( 'ABSPATH' ) || exit;
 
 class IndexNow {
 
-	const ENDPOINT     = 'https://api.indexnow.org/indexnow';
-	const CRON         = 'aktio_connector_indexnow';
-	const SCHEDULE     = 'aktio_five_minutes';
-	const QUEUE        = 'aktio_connector_indexnow_queue';
-	const LOG          = 'aktio_connector_indexnow_log';
-	const LAST         = 'aktio_connector_indexnow_last';
-	const SITEMAP_LAST = 'aktio_connector_indexnow_sitemap';
-	const QUERY_VAR    = 'aktio_indexnow_key';
-	const BATCH        = 10000;
-	const LOG_MAX      = 50;
+	const ENDPOINT      = 'https://api.indexnow.org/indexnow';
+	const CRON          = 'aktio_connector_indexnow';
+	const SCHEDULE      = 'aktio_five_minutes';
+	const QUEUE         = 'aktio_connector_indexnow_queue';
+	const LOG           = 'aktio_connector_indexnow_log';
+	const LAST          = 'aktio_connector_indexnow_last';
+	const SITEMAP_LAST  = 'aktio_connector_indexnow_sitemap';
+	const QUERY_VAR     = 'aktio_indexnow_key';
+	const RULES_OPTION  = 'aktio_connector_rewrite_version';
+	const RULES_VERSION = 2;
+	const BATCH         = 10000;
+	const QUEUE_MAX     = 50000;
+	const LOG_MAX       = 50;
 
 	public static function register(): void {
 		add_filter( 'cron_schedules', array( __CLASS__, 'cron_schedules' ) );
 		add_action( 'init', array( __CLASS__, 'add_rewrite' ) );
 		add_action( 'init', array( __CLASS__, 'schedule' ) );
+		// Po add_rewrite() obu modułów (priorytet 10): aktualizacja z 0.1.x nie uruchamia hooka aktywacji.
+		add_action( 'init', array( __CLASS__, 'maybe_flush_rules' ), 99 );
+		add_action( 'update_option_' . Settings::OPTION, array( __CLASS__, 'on_settings_saved' ), 10, 2 );
+		add_action( 'add_option_' . Settings::OPTION, array( __CLASS__, 'on_settings_added' ), 10, 2 );
 		add_filter( 'query_vars', array( __CLASS__, 'query_vars' ) );
 		add_action( 'template_redirect', array( __CLASS__, 'serve' ) );
 		add_action( self::CRON, array( __CLASS__, 'flush' ) );
@@ -47,6 +54,48 @@ class IndexNow {
 	public static function activate(): void {
 		self::add_rewrite();
 		self::schedule();
+		update_option( self::RULES_OPTION, self::RULES_VERSION, true );
+	}
+
+	/**
+	 * Jednorazowy flush reguł rewrite, gdy zmieniła się wersja reguł wtyczki (np. po aktualizacji z 0.1.x).
+	 */
+	public static function maybe_flush_rules(): void {
+		if ( (int) get_option( self::RULES_OPTION, 0 ) >= self::RULES_VERSION ) {
+			return;
+		}
+		flush_rewrite_rules( false );
+		update_option( self::RULES_OPTION, self::RULES_VERSION, true );
+	}
+
+	/**
+	 * Włączenie IndexNow zapisem ustawień: odświeżamy reguły, żeby /<klucz>.txt działał od razu.
+	 *
+	 * @param mixed $old Poprzednia wartość opcji.
+	 * @param mixed $new Nowa wartość opcji.
+	 */
+	public static function on_settings_saved( $old, $new ): void {
+		if ( self::enabled_in( $new ) && ! self::enabled_in( $old ) ) {
+			flush_rewrite_rules( false );
+		}
+	}
+
+	/**
+	 * @param string $option Nazwa opcji.
+	 * @param mixed  $value  Zapisana wartość.
+	 */
+	public static function on_settings_added( $option, $value ): void {
+		unset( $option );
+		if ( self::enabled_in( $value ) ) {
+			flush_rewrite_rules( false );
+		}
+	}
+
+	/**
+	 * @param mixed $stored Surowa wartość opcji ustawień.
+	 */
+	private static function enabled_in( $stored ): bool {
+		return is_array( $stored ) && ! empty( $stored['indexnow']['enabled'] );
 	}
 
 	public static function deactivate(): void {
@@ -154,6 +203,10 @@ class IndexNow {
 			return;
 		}
 		$queue[] = $url;
+		// Najnowsze adresy wygrywają, gdy kolejka rośnie (np. długa awaria endpointu).
+		if ( count( $queue ) > self::QUEUE_MAX ) {
+			$queue = array_slice( $queue, -self::QUEUE_MAX );
+		}
 		update_option( self::QUEUE, $queue, false );
 	}
 
@@ -211,8 +264,9 @@ class IndexNow {
 	}
 
 	/**
-	 * Wysyła kolejkę (do 10 000 adresów w jednym POST). 2xx i błędy klienta (poza 429) usuwają
-	 * wysłaną partię z kolejki; 429, 5xx i błąd sieci zostawiają ją do następnego przebiegu.
+	 * Wysyła kolejkę (do 10 000 adresów w jednym POST). 2xx i błędy klienta (poza 401, 403 i 429)
+	 * usuwają wysłaną partię z kolejki; 401/403 (klucz jeszcze niewidoczny), 429, 5xx i błąd sieci
+	 * zostawiają ją do następnego przebiegu.
 	 *
 	 * @return array{sent:int, code:int|null}
 	 */
@@ -227,7 +281,7 @@ class IndexNow {
 		}
 		$batch = array_slice( $queue, 0, self::BATCH );
 		$code  = self::send( $batch );
-		if ( null !== $code && 429 !== $code && $code < 500 ) {
+		if ( null !== $code && ! in_array( $code, array( 401, 403, 429 ), true ) && $code < 500 ) {
 			$rest = array_slice( $queue, count( $batch ) );
 			if ( $rest ) {
 				update_option( self::QUEUE, $rest, false );
@@ -263,8 +317,6 @@ class IndexNow {
 				array( 'status' => 429 )
 			);
 		}
-		update_option( self::SITEMAP_LAST, time(), false );
-
 		$urls = array( home_url( '/' ) );
 		$ids  = get_posts(
 			array(
@@ -287,6 +339,10 @@ class IndexNow {
 		$urls   = array_values( array_unique( $urls ) );
 		$code   = self::send( $urls );
 		$ok     = null !== $code && $code >= 200 && $code < 300;
+		// Znacznik 24 h dopiero po sukcesie — nieudana próba nie blokuje ponowienia.
+		if ( $ok ) {
+			update_option( self::SITEMAP_LAST, time(), false );
+		}
 		return array(
 			'queued' => count( $urls ),
 			'sent'   => $ok ? count( $urls ) : 0,
