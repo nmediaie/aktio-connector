@@ -30,6 +30,7 @@ require_once __DIR__ . '/includes/Schema/ContentSchema.php';
 require_once __DIR__ . '/includes/Schema/ProductSchema.php';
 require_once __DIR__ . '/includes/Seo/Fields.php';
 require_once __DIR__ . '/includes/Seo/Head.php';
+require_once __DIR__ . '/includes/CachePurge.php';
 require_once __DIR__ . '/includes/Crawlers.php';
 require_once __DIR__ . '/includes/Health.php';
 require_once __DIR__ . '/includes/Admin/SettingsPage.php';
@@ -41,6 +42,7 @@ require_once __DIR__ . '/includes/Admin/SettingsPage.php';
 \AktioConnector\Schema\ProductSchema::register();
 \AktioConnector\Seo\Fields::register();
 \AktioConnector\Seo\Head::register();
+\AktioConnector\CachePurge::register();
 \AktioConnector\Crawlers::register();
 \AktioConnector\Updates::register();
 if ( is_admin() ) {

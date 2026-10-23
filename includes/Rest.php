@@ -114,6 +114,10 @@ class Rest {
 				'company'          => Settings::get()['company'],
 				'content_language' => Language::current(),
 				'language_warning' => self::language_warning(),
+				'cache'            => array(
+					'plugin'     => CachePurge::detected(),
+					'last_purge' => CachePurge::last(),
+				),
 				'update_log'       => Updates::log( 5 ),
 			)
 		);
