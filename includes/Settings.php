@@ -104,7 +104,7 @@ class Settings {
 	public static function shop_country(): string {
 		$raw  = get_option( 'woocommerce_default_country', '' );
 		$code = is_string( $raw ) ? strtoupper( trim( explode( ':', $raw )[0] ) ) : '';
-		return 1 === preg_match( '/^[A-Z]{2}$/', $code ) ? $code : '';
+		return 1 === preg_match( '/^[A-Z]{2}\z/', $code ) ? $code : '';
 	}
 
 	/**
@@ -156,7 +156,7 @@ class Settings {
 	 */
 	private static function indexnow_key( array $stored ): string {
 		$key = $stored['indexnow']['key'] ?? '';
-		if ( is_string( $key ) && 1 === preg_match( '/^[a-f0-9]{32}$/', $key ) ) {
+		if ( is_string( $key ) && 1 === preg_match( '/^[a-f0-9]{32}\z/', $key ) ) {
 			return $key;
 		}
 		$key = bin2hex( random_bytes( 16 ) );
@@ -354,7 +354,7 @@ class Settings {
 				self::apply_country( $sh, 'merchant.shipping', $out['shipping'], $errors );
 				if ( array_key_exists( 'cost', $sh ) ) {
 					$cost = $sh['cost'];
-					if ( is_string( $cost ) && strlen( $cost ) <= 10 && 1 === preg_match( '/^\d+(\.\d{1,2})?$/', $cost ) ) {
+					if ( is_string( $cost ) && strlen( $cost ) <= 10 && 1 === preg_match( '/^\d+(\.\d{1,2})?\z/', $cost ) ) {
 						$out['shipping']['cost'] = $cost;
 					} else {
 						$errors['merchant.shipping.cost'] = self::field_message( 'cost', 'merchant.shipping.cost' );
@@ -395,7 +395,7 @@ class Settings {
 
 		if ( array_key_exists( 'content_language', $in ) ) {
 			$lang = $in['content_language'];
-			if ( is_string( $lang ) && ( '' === $lang || 1 === preg_match( '/^[a-z]{2}(-[A-Z]{2})?$/', $lang ) ) ) {
+			if ( is_string( $lang ) && ( '' === $lang || 1 === preg_match( '/^[a-z]{2}(-[A-Z]{2})?\z/', $lang ) ) ) {
 				$out['content_language'] = $lang;
 			} else {
 				$errors['content_language'] = self::field_message( 'format', 'content_language', __( 'a language code such as pl or pl-PL, or an empty string for the site language', 'aktio-connector' ) );
@@ -422,8 +422,8 @@ class Settings {
 			} else {
 				$ve = $in['verification'];
 				self::unknown_keys( $ve, array( 'bing', 'google' ), 'verification', $errors );
-				self::apply_pattern( $ve, 'bing', 'verification', '/^[A-F0-9]{32}$/', __( '32 uppercase hexadecimal characters or an empty string', 'aktio-connector' ), $out['verification'], $errors );
-				self::apply_pattern( $ve, 'google', 'verification', '/^[A-Za-z0-9_-]{20,100}$/', __( '20 to 100 letters, digits, hyphens or underscores, or an empty string', 'aktio-connector' ), $out['verification'], $errors );
+				self::apply_pattern( $ve, 'bing', 'verification', '/^[A-F0-9]{32}\z/', __( '32 uppercase hexadecimal characters or an empty string', 'aktio-connector' ), $out['verification'], $errors );
+				self::apply_pattern( $ve, 'google', 'verification', '/^[A-Za-z0-9_-]{20,100}\z/', __( '20 to 100 letters, digits, hyphens or underscores, or an empty string', 'aktio-connector' ), $out['verification'], $errors );
 			}
 		}
 		return array( $out, $errors );
@@ -442,7 +442,7 @@ class Settings {
 		self::apply_string( $in, 'area_served', 'company', 100, $out, $errors );
 		if ( array_key_exists( 'founding_date', $in ) ) {
 			$date = $in['founding_date'];
-			$ok   = is_string( $date ) && ( '' === $date || ( 1 === preg_match( '/^(\d{4})-(\d{2})-(\d{2})$/', $date, $m ) && checkdate( (int) $m[2], (int) $m[3], (int) $m[1] ) ) );
+			$ok   = is_string( $date ) && ( '' === $date || ( 1 === preg_match( '/^(\d{4})-(\d{2})-(\d{2})\z/', $date, $m ) && checkdate( (int) $m[2], (int) $m[3], (int) $m[1] ) ) );
 			if ( $ok ) {
 				$out['founding_date'] = $date;
 			} else {
@@ -518,7 +518,7 @@ class Settings {
 		if ( ! is_array( $value ) || count( $value ) > 7 || ( array() !== $value && array_keys( $value ) !== range( 0, count( $value ) - 1 ) ) ) {
 			return null;
 		}
-		$time = '/^([01]\d|2[0-3]):[0-5]\d$/';
+		$time = '/^([01]\d|2[0-3]):[0-5]\d\z/';
 		$out  = array();
 		foreach ( $value as $entry ) {
 			if ( ! self::is_object( $entry ) || array( 'closes', 'days', 'opens' ) !== self::sorted_keys( $entry ) ) {
@@ -629,7 +629,7 @@ class Settings {
 		if ( ! array_key_exists( 'country', $in ) ) {
 			return;
 		}
-		if ( is_string( $in['country'] ) && ( '' === $in['country'] || 1 === preg_match( '/^[A-Z]{2}$/', $in['country'] ) ) ) {
+		if ( is_string( $in['country'] ) && ( '' === $in['country'] || 1 === preg_match( '/^[A-Z]{2}\z/', $in['country'] ) ) ) {
 			$out['country'] = $in['country'];
 		} else {
 			$errors[ "$path.country" ] = self::field_message( 'country', "$path.country" );
