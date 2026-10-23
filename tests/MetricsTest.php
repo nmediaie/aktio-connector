@@ -126,6 +126,42 @@ class MetricsTest extends WP_UnitTestCase {
 		$this->assertSame( 0, $this->count_of( 'referral', 'chatgpt.com', '/inna/' ) );
 	}
 
+	public function test_foreign_sources_and_repeats_do_not_spend_the_rate_budget() {
+		for ( $i = 1; $i <= 100; $i++ ) {
+			$response = $this->beacon( array( 'r' => 'https://www.google.com/', 'p' => '/a/' ), '192.0.2.' . $i );
+			$this->assertSame( 204, $response->get_status() );
+		}
+		for ( $i = 1; $i <= 30; $i++ ) {
+			$this->beacon( array( 'r' => 'https://claude.ai/', 'p' => '/powtorka/' ), '192.0.2.250' );
+		}
+		// Powtórzenia i obce źródła nie zużyły limitu: 59 kolejnych realnych wejść (razem 60) przechodzi.
+		for ( $i = 1; $i <= 59; $i++ ) {
+			$response = $this->beacon( array( 'r' => 'https://chatgpt.com/', 'p' => '/p' . $i . '/' ), '198.51.100.' . $i );
+			$this->assertSame( 204, $response->get_status(), (string) $i );
+		}
+		$this->assertSame( 1, $this->count_of( 'referral', 'claude.ai', '/powtorka/' ) );
+		$this->assertSame( 1, $this->count_of( 'referral', 'chatgpt.com', '/p59/' ) );
+	}
+
+	public function test_rate_limited_visit_is_not_marked_as_seen() {
+		$bucket = Metrics::TRANSIENT . 'rl' . (int) floor( time() / MINUTE_IN_SECONDS );
+		set_transient( $bucket, Metrics::RATE_LIMIT, 120 );
+		$this->assertSame( 429, $this->beacon( array( 'r' => 'https://claude.ai/', 'p' => '/a/' ) )->get_status() );
+		delete_transient( $bucket );
+		$this->beacon( array( 'r' => 'https://claude.ai/', 'p' => '/a/' ) );
+		$this->assertSame( 1, $this->count_of( 'referral', 'claude.ai', '/a/' ) );
+	}
+
+	public function test_beacon_script_gets_ai_host_list_and_filters_in_js() {
+		set_current_screen( 'front' );
+		do_action( 'wp_enqueue_scripts' );
+		$data = (string) wp_scripts()->get_data( 'aktio-beacon', 'data' );
+		$this->assertStringContainsString( '"hosts":["chatgpt.com","perplexity.ai","gemini.google.com","copilot.microsoft.com","claude.ai"]', $data );
+		$js = file_get_contents( dirname( __DIR__ ) . '/assets/aktio-beacon.js' );
+		$this->assertStringContainsString( 'c.hosts', $js );
+		$this->assertLessThanOrEqual( 1024, strlen( $js ) );
+	}
+
 	public function test_more_than_200_paths_a_day_are_counted_without_path() {
 		for ( $i = 1; $i <= 202; $i++ ) {
 			Metrics::record_referral( 'chatgpt.com', '/s' . $i . '/' );

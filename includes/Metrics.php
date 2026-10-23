@@ -161,14 +161,33 @@ class Metrics {
 				'in_footer' => true,
 			)
 		);
-		wp_localize_script( 'aktio-beacon', 'aktioBeacon', array( 'url' => rest_url( Rest::NAMESPACE . '/beacon' ) ) );
+		// Lista hostów AI: skrypt wysyła beacon tylko dla tych źródeł (reszta ruchu nie zużywa budżetu).
+		wp_localize_script(
+			'aktio-beacon',
+			'aktioBeacon',
+			array(
+				'url'   => rest_url( Rest::NAMESPACE . '/beacon' ),
+				'hosts' => self::SOURCES,
+			)
+		);
 	}
 
 	/**
 	 * POST aktio/v1/beacon (publiczny): `r` = document.referrer, `u` = utm_source, `p` = ścieżka.
-	 * Globalny limit 60/min (429); powtórzenia z tego samego IP i ścieżki w 10 min są odrzucane.
+	 * Globalny limit 60/min (429) zużywają tylko wejścia ze źródeł AI, które nie są powtórzeniem;
+	 * obce źródła i powtórzenia z tego samego IP i ścieżki w 10 min kończą się 204 bez liczenia.
 	 */
 	public static function beacon( \WP_REST_Request $request ) {
+		$source = self::source( $request->get_param( 'r' ), $request->get_param( 'u' ) );
+		$path   = self::clean_path( $request->get_param( 'p' ) );
+		if ( null === $source || '' === $path ) {
+			return new \WP_REST_Response( null, 204 );
+		}
+		$visit = self::visit_key( $path );
+		if ( false !== get_transient( $visit ) ) {
+			return new \WP_REST_Response( null, 204 );
+		}
+
 		$bucket = self::TRANSIENT . 'rl' . (int) floor( time() / MINUTE_IN_SECONDS );
 		$hits   = (int) get_transient( $bucket ) + 1;
 		set_transient( $bucket, $hits, 2 * MINUTE_IN_SECONDS );
@@ -176,11 +195,8 @@ class Metrics {
 			return new \WP_Error( 'aktio_rate_limited', __( 'Too many requests.', 'aktio-connector' ), array( 'status' => 429 ) );
 		}
 
-		$source = self::source( $request->get_param( 'r' ), $request->get_param( 'u' ) );
-		$path   = self::clean_path( $request->get_param( 'p' ) );
-		if ( null !== $source && '' !== $path && self::is_new_visit( $path ) ) {
-			self::record_referral( $source, $path );
-		}
+		set_transient( $visit, 1, self::DEDUP_TTL );
+		self::record_referral( $source, $path );
 		return new \WP_REST_Response( null, 204 );
 	}
 
@@ -221,14 +237,9 @@ class Metrics {
 	/**
 	 * Ulotny HMAC(IP + ścieżka) w transiencie na 10 min; sam IP nigdzie nie jest zapisywany.
 	 */
-	private static function is_new_visit( string $path ): bool {
-		$ip   = isset( $_SERVER['REMOTE_ADDR'] ) ? (string) wp_unslash( $_SERVER['REMOTE_ADDR'] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- tylko wejście HMAC.
-		$name = self::TRANSIENT . substr( hash_hmac( 'sha256', $ip . '|' . $path, wp_salt( 'auth' ) . 'aktio-beacon' ), 0, 32 );
-		if ( false !== get_transient( $name ) ) {
-			return false;
-		}
-		set_transient( $name, 1, self::DEDUP_TTL );
-		return true;
+	private static function visit_key( string $path ): string {
+		$ip = isset( $_SERVER['REMOTE_ADDR'] ) ? (string) wp_unslash( $_SERVER['REMOTE_ADDR'] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- tylko wejście HMAC.
+		return self::TRANSIENT . substr( hash_hmac( 'sha256', $ip . '|' . $path, wp_salt( 'auth' ) . 'aktio-beacon' ), 0, 32 );
 	}
 
 	/**
