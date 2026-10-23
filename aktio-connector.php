@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Aktio Connector
  * Description:       Schema.org, robots.txt and llms.txt for AI bots, Site Health and updates over REST — standalone or with Aktio.
- * Version:           0.1.2
+ * Version:           0.2.0
  * Requires at least: 6.2
  * Requires PHP:      7.4
  * Author:            NM Media
@@ -16,7 +16,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'AKTIO_CONNECTOR_VERSION', '0.1.2' );
+define( 'AKTIO_CONNECTOR_VERSION', '0.2.0' );
 define( 'AKTIO_CONNECTOR_FILE', __FILE__ );
 
 // Prosty autoload przez require — wtyczka działa po rozpakowaniu zipa bez vendor/.

@@ -1,38 +1,74 @@
 === Aktio Connector ===
 Contributors: nmmedia
-Tags: schema, llms.txt, robots.txt, ai, woocommerce
+Tags: seo, schema, llms.txt, ai, woocommerce
 Requires at least: 6.2
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 0.1.2
+Stable tag: 0.2.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Schema.org, robots.txt and llms.txt for AI bots, Site Health and updates over REST — standalone or together with Aktio.
+Basic SEO, schema.org, llms.txt, robots.txt for AI bots, IndexNow and AI visit measurement — standalone or together with Aktio.
 
 == Description ==
 
-Aktio Connector makes a WordPress site easier for search engines and AI bots to read, and lets you check its health remotely, but only on your terms.
+Aktio Connector makes a WordPress site easier for search engines and AI bots to read, and lets you check its health remotely, but only on your terms. Every SEO feature works only when no other SEO plugin already provides it, so nothing is duplicated.
 
 **What the plugin does**
 
-* **schema.org structured data (JSON-LD):** the business (Organization or LocalBusiness), the website, pages, articles and breadcrumbs. With WooCommerce also products (Product, ProductGroup, offers and ratings) and, if you choose to declare them, a default brand, a return policy and fallback shipping details.
+* **schema.org structured data (JSON-LD):** the business (Organization or LocalBusiness, with description, founding date, contact point, opening hours, location and area served), the website, pages, articles and breadcrumbs. With WooCommerce also products (Product, ProductGroup, offers and ratings) and, if you choose to declare them, a default brand, a return policy and fallback shipping details.
+* **Basic SEO without an SEO plugin (new in 0.2):** meta description, Open Graph and X (Twitter) cards, custom page title, and `noindex` for internal pages (search results, cart, checkout, account, attachments, empty tags, single-author archives, which are also removed from the WordPress sitemap). Each post, page, product and category gets optional "SEO title" and "SEO description" fields. If an SEO plugin (or Jetpack for Open Graph) already provides a feature, Aktio Connector stays out of the way.
+* **Content language (new in 0.2):** the language of your content (for example `en-IE`) can differ from the language of the admin panel. It is used in `lang`, `og:locale`, schema `inLanguage` and llms.txt. The settings screen warns when the content seems to be in a different language than declared.
+* **Cache purge (new in 0.2):** after you save the settings or a product stock status changes, the plugin clears the cache of a detected caching plugin (Cache Enabler, WP Rocket, LiteSpeed Cache, W3 Total Cache, WP Super Cache, WP Fastest Cache, SiteGround Optimizer, Breeze, Cloudflare). There is also a "Clear now" button.
+* **IndexNow (new in 0.2, off by default):** tells Bing and other participating search engines about new, changed and deleted public URLs. Includes a log and a "Submit the whole sitemap" button. Never used on sites that discourage search engines and never for `noindex` addresses. Bing and Google site verification codes can be entered in the settings.
+* **AI visit measurement (new in 0.2):** counts visits of AI bots and visits coming from AI assistants and AI search (ChatGPT, Perplexity, Gemini, Copilot, Claude), without cookies. See the privacy section below.
+* **FAQ block and shortcode (new in 0.2):** the `aktio/faq` block and the `[aktio_faq]` shortcode (`Q: ...` / `A: ...` line by line) render questions and answers and add FAQPage schema.
+* **Catalog scan for the Aktio agent (new in 0.2):** read-only REST routes list products (brands, images, missing ALT texts, description lengths) and images without ALT text, and a route to set ALT texts in bulk (up to 50 per call, with the previous value returned for every item). Available to authenticated users with the right capabilities.
 * **robots.txt for AI bots:** appends a block for GPTBot, OAI-SearchBot, ClaudeBot, PerplexityBot, Google-Extended and Applebot-Extended at the end of robots.txt. Bots are allowed by default and you can block each one in the settings.
-* **llms.txt:** serves `/llms.txt` with a list of pages, recent posts and products. Password-protected and unpublished content is left out.
+* **llms.txt:** serves `/llms.txt` with a short description of the business, a list of pages, recent posts and products. Password-protected and unpublished content is left out.
 * **Site Health over REST:** Site Health test results and environment information available to logged-in administrators through `aktio/v1/health`.
 * **Updates over REST with a log:** the list of available core, plugin and theme updates and a way to apply them through `aktio/v1/updates`. Every update is written to a log (the last 50 entries) shown in the settings. The plugin never rolls anything back automatically.
 
-You edit the business details, bot settings and (with WooCommerce) the merchant data under **Settings → Aktio Connector**. The screen also shows which features are provided by this plugin and which by another SEO plugin or a physical file, plus the update log.
+You edit everything under **Settings → Aktio Connector**. The screen also shows which features are provided by this plugin and which by another SEO plugin or a physical file, plus the update log.
 
 **Privacy and security**
 
-* The plugin does not connect to any server, sends no telemetry and does not require an account.
-* The REST endpoints require authentication (for example a WordPress application password) and capabilities matching the operation, such as `manage_options` or `update_plugins`.
-* The plugin stores no secrets.
+* The plugin sends no telemetry and does not require an account. The only outgoing connection is the optional IndexNow notification, which is off by default (see "External services").
+* The REST endpoints require authentication (for example a WordPress application password) and capabilities matching the operation, such as `manage_options` or `update_plugins`. The only public endpoint is the AI visit beacon described below.
+* The plugin stores no secrets. The IndexNow key is a public identifier that must be readable by search engines by design.
+
+**Privacy of AI visit measurement**
+
+* No cookies and no visitor identifiers are used.
+* To avoid counting the same visit many times, a short-lived HMAC (keyed hash) of the visitor's IP address is kept in a transient for 10 minutes. The IP address itself is never stored, and neither the hash nor the address is written to the database table or to any log.
+* Counts are stored in the `aktio_metrics` table (day, kind, source name, landing path, count). Rows older than 400 days are deleted automatically.
+* At most 200 distinct landing paths are stored per day; further visits that day are counted without a path.
+* Only visits from bots and AI sources on the built-in list are counted. A visit from any other source is not recorded at all.
+* Page caches can hide bot visits, so the numbers may be lower than the real ones.
+* Uninstalling the plugin removes the table and the scheduled tasks.
 
 **Working with Aktio**
 
 Aktio (aktioapp.com) is a tool for managing content and visibility of a site. If you use it, it connects to your site through REST with an application password, and Aktio initiates every connection. Without Aktio the plugin works fully on its own.
+
+== External services ==
+
+This plugin can connect to the following external services. Neither is required.
+
+**IndexNow (optional, off by default)**
+
+IndexNow (indexnow.org) is a protocol that lets a website tell search engines (for example Bing) which of its pages changed, so they can be crawled sooner.
+
+* What it is used for: notifying search engines about new, updated or deleted public pages, products and categories.
+* When: only after the site owner (or Aktio, with the owner's explicit consent) turns IndexNow on in the settings. Notifications are sent in the background about every 5 minutes, and when you click "Submit the whole sitemap" (at most once a day). Nothing is sent when the site is set to discourage search engines or for pages marked `noindex`.
+* What data is sent: only the site host name, the IndexNow key (a random string generated by the plugin and also served publicly at `/<key>.txt` as the protocol requires) and the list of changed page URLs. No personal data, no content and no visitor data are sent.
+* Service: https://api.indexnow.org/indexnow
+* Terms of use: https://www.indexnow.org/terms
+* Privacy policy: https://www.indexnow.org/privacy
+
+**Aktio (optional)**
+
+Aktio (https://aktioapp.com) is a service for managing the content and visibility of a site. The plugin never connects to Aktio by itself and sends nothing to it. If you use Aktio, Aktio connects to your site's REST API with an application password and initiates every connection. Without Aktio the plugin works fully on its own.
 
 == Installation ==
 
@@ -44,11 +80,11 @@ Aktio (aktioapp.com) is a tool for managing content and visibility of a site. If
 
 = Does the plugin connect to any server or require an account? =
 
-No. The plugin does not connect to any server, sends no telemetry and does not require an account. It runs entirely on your site. A connection with Aktio, if you use it, is initiated only by Aktio, through your site's REST API.
+No account is needed. By default the plugin connects to no server and sends no telemetry. The only outgoing connection is the optional IndexNow notification (https://api.indexnow.org), which is off by default and sends only page URLs and the IndexNow key. A connection with Aktio, if you use it, is initiated only by Aktio, through your site's REST API.
 
 = I already have an SEO plugin (Yoast SEO, Rank Math, All in One SEO and others). Will the data be duplicated? =
 
-No. If an active SEO plugin or a physical file in the site directory already provides a feature (schema, llms.txt), Aktio Connector does not duplicate it. A robots.txt generated by an SEO plugin is kept as is; Aktio Connector only appends rules for blocked AI bots (see below). The settings screen shows who provides each feature. SEO plugins that are installed but not active are ignored.
+No. If an active SEO plugin or a physical file in the site directory already provides a feature (schema, llms.txt, title, meta description, Open Graph, X cards, robots meta), Aktio Connector does not duplicate it, and the "SEO title" and "SEO description" fields are hidden. Jetpack with Open Graph enabled provides only Open Graph and X cards. The settings screen shows who provides each feature. SEO plugins that are installed but not active are ignored.
 
 = My SEO plugin builds its own robots.txt. Where does the AI bot block go? =
 
@@ -66,7 +102,22 @@ Yes. Under **Settings → Aktio Connector** choose "Block" next to any of the si
 
 The default brand goes through WordPress text sanitization: HTML tags are stripped and surrounding whitespace is trimmed (up to 100 characters are accepted). Other fields are not corrected: invalid values (for example a wrong country code or a negative cost) are rejected with an error and nothing is saved, because this data is declared to Google. An empty country means the country of your WooCommerce store, including when you change it later.
 
+= Does AI visit measurement use cookies or store IP addresses? =
+
+No cookies, no visitor identifiers and no stored IP addresses. See "Privacy of AI visit measurement" above.
+
 == Changelog ==
+
+= 0.2.0 =
+* New: basic SEO without an SEO plugin: meta description, Open Graph, X cards, custom title and `noindex` for internal pages, with "SEO title" and "SEO description" fields for posts, pages, products and categories. Everything switches off for features already provided by an SEO plugin (or Jetpack Open Graph).
+* New: content language independent of the admin language, with a warning when the content seems to be in another language.
+* New: cache purge for popular caching plugins after saving the settings or a stock status change, plus a "Clear now" button.
+* New: IndexNow (off by default) with a log and "Submit the whole sitemap", and Bing / Google site verification codes.
+* New: cookieless measurement of AI bot visits and visits from AI assistants (`aktio/v1/metrics`).
+* New: FAQ block and `[aktio_faq]` shortcode with FAQPage schema.
+* New: extended business data in schema.org and llms.txt (description, founding date, contact point, opening hours, location, area served).
+* New: catalog scan and bulk ALT text routes for the Aktio agent.
+* New: settings screen with all of the above, Polish translation updated.
 
 = 0.1.2 =
 * WooCommerce: new Merchant section in the settings (also available to Aktio over `aktio/v1/visibility`): a default brand for products without their own brand, a declared return policy (`hasMerchantReturnPolicy`) and fallback shipping details (`shippingDetails`) used only when WooCommerce shipping zones give nothing. Both declarations are off by default and invalid values are rejected rather than corrected.
@@ -80,3 +131,8 @@ The default brand goes through WordPress text sanitization: HTML tags are stripp
 
 = 0.1.0 =
 * First release: schema.org, AI bots in robots.txt, llms.txt, Site Health and updates over REST with a log, settings screen.
+
+== Upgrade Notice ==
+
+= 0.2.0 =
+Adds basic SEO, IndexNow (off by default), AI visit measurement and more. A database table is created on update.
