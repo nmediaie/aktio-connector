@@ -106,15 +106,29 @@ class Rest {
 	public static function status(): \WP_REST_Response {
 		return rest_ensure_response(
 			array(
-				'version'     => AKTIO_CONNECTOR_VERSION,
-				'woocommerce' => class_exists( 'WooCommerce' ),
-				'features'    => Detector::features(),
-				'seo'         => array_intersect_key( Detector::features(), array_flip( Detector::SEO_FEATURES ) ),
-				'seo_plugins' => Detector::seo_plugins(),
-				'company'     => Settings::get()['company'],
-				'update_log'  => Updates::log( 5 ),
+				'version'          => AKTIO_CONNECTOR_VERSION,
+				'woocommerce'      => class_exists( 'WooCommerce' ),
+				'features'         => Detector::features(),
+				'seo'              => array_intersect_key( Detector::features(), array_flip( Detector::SEO_FEATURES ) ),
+				'seo_plugins'      => Detector::seo_plugins(),
+				'company'          => Settings::get()['company'],
+				'content_language' => Language::current(),
+				'language_warning' => self::language_warning(),
+				'update_log'       => Updates::log( 5 ),
 			)
 		);
+	}
+
+	/**
+	 * Ostrzeżenie o języku: `gtranslate_js` (tłumaczenie w JS), tablica {expected, detected} albo null.
+	 *
+	 * @return array|string|null
+	 */
+	public static function language_warning() {
+		if ( Language::gtranslate_js() ) {
+			return 'gtranslate_js';
+		}
+		return Language::warning();
 	}
 
 	public static function visibility(): \WP_REST_Response {

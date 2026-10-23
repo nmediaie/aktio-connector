@@ -167,8 +167,8 @@ class Crawlers {
 			$out .= "\n> " . $desc . "\n";
 		}
 
-		// Nagłówki llms.txt czyta maszyna: zależą od języka witryny (get_locale), nie od tłumaczenia panelu.
-		$pl   = 0 === strpos( get_locale(), 'pl' );
+		// Nagłówki llms.txt czyta maszyna: zależą od języka treści strony (Language::current), nie od tłumaczenia panelu.
+		$pl   = 0 === strpos( Language::current(), 'pl' );
 		$out .= self::section( $pl ? 'Strony' : 'Pages', self::post_lines( 'page', 50, array( 'menu_order' => 'ASC', 'title' => 'ASC' ) ) );
 		$out .= self::section( $pl ? 'Wpisy' : 'Posts', self::post_lines( 'post', 10, array( 'date' => 'DESC' ) ) );
 		if ( class_exists( 'WooCommerce' ) && function_exists( 'wc_get_product' ) ) {

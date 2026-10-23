@@ -9,6 +9,7 @@
 namespace AktioConnector\Schema;
 
 use AktioConnector\Detector;
+use AktioConnector\Language;
 use AktioConnector\Settings;
 
 defined( 'ABSPATH' ) || exit;
@@ -105,7 +106,8 @@ class ContentSchema {
 			'@id'             => home_url( '/#website' ),
 			'url'             => home_url( '/' ),
 			'name'            => get_bloginfo( 'name' ),
-			'publisher'       => array( '@id' => home_url( '/#organization' ) ),
+			'inLanguage'      => Language::current(),
+			'publisher'     => array( '@id' => home_url( '/#organization' ) ),
 			'potentialAction' => array(
 				'@type'       => 'SearchAction',
 				'target'      => array(
@@ -139,8 +141,9 @@ class ContentSchema {
 			'@type'    => 'WebPage',
 			'@id'      => $url . '#webpage',
 			'url'      => $url,
-			'name'     => self::title( $post ),
-			'isPartOf' => array( '@id' => home_url( '/#website' ) ),
+			'name'       => self::title( $post ),
+			'inLanguage' => Language::current(),
+			'isPartOf'   => array( '@id' => home_url( '/#website' ) ),
 		);
 		if ( $post ) {
 			$node['datePublished'] = get_post_time( 'c', true, $post );

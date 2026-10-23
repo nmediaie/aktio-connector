@@ -22,6 +22,7 @@ define( 'AKTIO_CONNECTOR_FILE', __FILE__ );
 // Prosty autoload przez require — wtyczka działa po rozpakowaniu zipa bez vendor/.
 require_once __DIR__ . '/includes/Settings.php';
 require_once __DIR__ . '/includes/Detector.php';
+require_once __DIR__ . '/includes/Language.php';
 require_once __DIR__ . '/includes/Updates.php';
 require_once __DIR__ . '/includes/Rest.php';
 require_once __DIR__ . '/includes/Schema/Graph.php';
@@ -33,6 +34,7 @@ require_once __DIR__ . '/includes/Crawlers.php';
 require_once __DIR__ . '/includes/Health.php';
 require_once __DIR__ . '/includes/Admin/SettingsPage.php';
 
+\AktioConnector\Language::register();
 \AktioConnector\Rest::register();
 \AktioConnector\Schema\Graph::register();
 \AktioConnector\Schema\ContentSchema::register();
