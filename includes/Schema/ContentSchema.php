@@ -97,6 +97,69 @@ class ContentSchema {
 		if ( ! empty( $c['same_as'] ) ) {
 			$node['sameAs'] = array_values( $c['same_as'] );
 		}
+
+		$description = Graph::plain( $c['description'] );
+		if ( '' !== $description ) {
+			$node['description'] = $description;
+		}
+		if ( '' !== $c['founding_date'] ) {
+			$node['foundingDate'] = $c['founding_date'];
+		}
+		if ( '' !== $c['area_served'] ) {
+			$node['areaServed'] = $c['area_served'];
+		}
+		$cp    = $c['contact_point'];
+		$point = array_filter(
+			array(
+				'contactType' => $cp['contact_type'],
+				'telephone'   => $cp['telephone'],
+				'email'       => $cp['email'],
+			),
+			'strlen'
+		);
+		if ( '' !== $cp['telephone'] || '' !== $cp['email'] || ! empty( $cp['languages'] ) ) {
+			$node['contactPoint'] = array( '@type' => 'ContactPoint' ) + $point;
+			if ( ! empty( $cp['languages'] ) ) {
+				$node['contactPoint']['availableLanguage'] = array_values( $cp['languages'] );
+			}
+		}
+
+		// Godziny i współrzędne mają sens tylko dla firmy lokalnej (dane są zapisywane niezależnie od typu).
+		if ( 'LocalBusiness' === $c['type'] ) {
+			$days  = array(
+				'Mo' => 'Monday',
+				'Tu' => 'Tuesday',
+				'We' => 'Wednesday',
+				'Th' => 'Thursday',
+				'Fr' => 'Friday',
+				'Sa' => 'Saturday',
+				'Su' => 'Sunday',
+			);
+			$hours = array();
+			foreach ( $c['opening_hours'] as $entry ) {
+				$hours[] = array(
+					'@type'     => 'OpeningHoursSpecification',
+					'dayOfWeek' => array_map(
+						static function ( $day ) use ( $days ) {
+							return $days[ $day ];
+						},
+						$entry['days']
+					),
+					'opens'     => $entry['opens'],
+					'closes'    => $entry['closes'],
+				);
+			}
+			if ( $hours ) {
+				$node['openingHoursSpecification'] = $hours;
+			}
+			if ( is_array( $c['geo'] ) ) {
+				$node['geo'] = array(
+					'@type'     => 'GeoCoordinates',
+					'latitude'  => $c['geo']['lat'],
+					'longitude' => $c['geo']['lng'],
+				);
+			}
+		}
 		return $node;
 	}
 

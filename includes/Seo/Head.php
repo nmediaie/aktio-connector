@@ -41,9 +41,14 @@ class Head {
 			if ( '' !== $own ) {
 				return $own;
 			}
-			$home = Settings::get()['seo']['home_description'];
+			$settings = Settings::get();
+			$home     = $settings['seo']['home_description'];
 			if ( '' !== trim( $home ) ) {
 				return self::trim_text( $home );
+			}
+			$company = self::trim_text( $settings['company']['description'] );
+			if ( '' !== $company ) {
+				return $company;
 			}
 			return self::trim_text( (string) get_bloginfo( 'description' ) );
 		}

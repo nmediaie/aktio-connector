@@ -134,6 +134,86 @@ class ContentSchemaTest extends WP_UnitTestCase {
 		$this->assertSame( '58-300', $biz['address']['postalCode'] );
 	}
 
+	private function brand_company( string $type ): array {
+		return array(
+			'name'          => 'Kawiarnia',
+			'type'          => $type,
+			'description'   => 'Kawa palona na miejscu',
+			'founding_date' => '2015-05-01',
+			'area_served'   => 'Dolny Śląsk',
+			'contact_point' => array(
+				'telephone'    => '+48 111 222 333',
+				'email'        => 'biuro@example.com',
+				'contact_type' => 'customer service',
+				'languages'    => array( 'pl', 'en' ),
+			),
+			'opening_hours' => array(
+				array( 'days' => array( 'Mo', 'Tu', 'Fr' ), 'opens' => '09:00', 'closes' => '17:00' ),
+				array( 'days' => array( 'Su' ), 'opens' => '10:00', 'closes' => '14:00' ),
+			),
+			'geo'           => array( 'lat' => 50.8, 'lng' => 16.28 ),
+		);
+	}
+
+	public function test_local_business_emits_extended_company_fields() {
+		Settings::update( array( 'company' => $this->brand_company( 'LocalBusiness' ) ) );
+		$this->go_to( home_url( '/' ) );
+		$biz = $this->by_type( $this->graph(), 'LocalBusiness' );
+		$this->assertSame( 'Kawa palona na miejscu', $biz['description'] );
+		$this->assertSame( '2015-05-01', $biz['foundingDate'] );
+		$this->assertSame( 'Dolny Śląsk', $biz['areaServed'] );
+		$this->assertSame(
+			array(
+				'@type'             => 'ContactPoint',
+				'contactType'       => 'customer service',
+				'telephone'         => '+48 111 222 333',
+				'email'             => 'biuro@example.com',
+				'availableLanguage' => array( 'pl', 'en' ),
+			),
+			$biz['contactPoint']
+		);
+		$this->assertSame(
+			array(
+				array(
+					'@type'     => 'OpeningHoursSpecification',
+					'dayOfWeek' => array( 'Monday', 'Tuesday', 'Friday' ),
+					'opens'     => '09:00',
+					'closes'    => '17:00',
+				),
+				array(
+					'@type'     => 'OpeningHoursSpecification',
+					'dayOfWeek' => array( 'Sunday' ),
+					'opens'     => '10:00',
+					'closes'    => '14:00',
+				),
+			),
+			$biz['openingHoursSpecification']
+		);
+		$this->assertSame( 'GeoCoordinates', $biz['geo']['@type'] );
+		$this->assertSame( 50.8, $biz['geo']['latitude'] );
+		$this->assertSame( 16.28, $biz['geo']['longitude'] );
+	}
+
+	public function test_organization_skips_local_only_fields_but_keeps_common_ones() {
+		Settings::update( array( 'company' => $this->brand_company( 'Organization' ) ) );
+		$this->go_to( home_url( '/' ) );
+		$org = $this->by_type( $this->graph(), 'Organization' );
+		$this->assertSame( 'Kawa palona na miejscu', $org['description'] );
+		$this->assertSame( '2015-05-01', $org['foundingDate'] );
+		$this->assertSame( 'ContactPoint', $org['contactPoint']['@type'] );
+		$this->assertArrayNotHasKey( 'openingHoursSpecification', $org );
+		$this->assertArrayNotHasKey( 'geo', $org );
+	}
+
+	public function test_empty_extended_fields_are_omitted() {
+		Settings::update( array( 'company' => array( 'type' => 'LocalBusiness', 'name' => 'Puste' ) ) );
+		$this->go_to( home_url( '/' ) );
+		$biz = $this->by_type( $this->graph(), 'LocalBusiness' );
+		foreach ( array( 'description', 'foundingDate', 'contactPoint', 'openingHoursSpecification', 'geo', 'areaServed' ) as $key ) {
+			$this->assertArrayNotHasKey( $key, $biz, $key );
+		}
+	}
+
 	public function test_nothing_rendered_when_seo_plugin_owns_content_schema() {
 		$dir = WP_PLUGIN_DIR . '/wordpress-seo';
 		mkdir( $dir, 0777, true );

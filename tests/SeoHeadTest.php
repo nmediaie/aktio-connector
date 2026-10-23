@@ -128,6 +128,14 @@ class SeoHeadTest extends WP_UnitTestCase {
 		Settings::update( array( 'seo' => array( 'home_description' => 'Opis z ustawień' ) ) );
 		$this->assertSame( 'Opis z ustawień', Head::description() );
 
+		// Opis firmy: po opisie z ustawień, przed opisem witryny.
+		Settings::update( array( 'seo' => array( 'home_description' => '' ), 'company' => array( 'description' => 'Opis firmy' ) ) );
+		$this->assertSame( 'Opis firmy', Head::description() );
+		Settings::update( array( 'seo' => array( 'home_description' => 'Opis z ustawień' ) ) );
+		$this->assertSame( 'Opis z ustawień', Head::description() );
+		Settings::update( array( 'seo' => array( 'home_description' => '' ), 'company' => array( 'description' => '' ) ) );
+		$this->assertSame( 'Opis witryny', Head::description() );
+
 		// Kategoria: opis terminu.
 		$term = self::factory()->category->create_and_get( array( 'description' => 'Opis kategorii' ) );
 		$this->go_to( get_term_link( $term ) );

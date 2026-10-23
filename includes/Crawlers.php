@@ -159,10 +159,15 @@ class Crawlers {
 			return $cached;
 		}
 
-		$name = Settings::get()['company']['name'];
-		$name = self::line( '' !== $name ? $name : (string) get_bloginfo( 'name' ) );
-		$out  = '# ' . $name . "\n";
-		$desc = self::line( (string) get_bloginfo( 'description' ) );
+		$company = Settings::get()['company'];
+		$name    = $company['name'];
+		$name    = self::line( '' !== $name ? $name : (string) get_bloginfo( 'name' ) );
+		$out     = '# ' . $name . "\n";
+		// Opis firmy ma pierwszeństwo przed hasłem witryny.
+		$desc = self::line( $company['description'] );
+		if ( '' === $desc ) {
+			$desc = self::line( (string) get_bloginfo( 'description' ) );
+		}
 		if ( '' !== $desc ) {
 			$out .= "\n> " . $desc . "\n";
 		}
