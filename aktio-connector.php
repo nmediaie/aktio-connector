@@ -31,6 +31,7 @@ require_once __DIR__ . '/includes/Schema/ProductSchema.php';
 require_once __DIR__ . '/includes/Seo/Fields.php';
 require_once __DIR__ . '/includes/Seo/Head.php';
 require_once __DIR__ . '/includes/CachePurge.php';
+require_once __DIR__ . '/includes/IndexNow.php';
 require_once __DIR__ . '/includes/Crawlers.php';
 require_once __DIR__ . '/includes/Health.php';
 require_once __DIR__ . '/includes/Admin/SettingsPage.php';
@@ -43,6 +44,7 @@ require_once __DIR__ . '/includes/Admin/SettingsPage.php';
 \AktioConnector\Seo\Fields::register();
 \AktioConnector\Seo\Head::register();
 \AktioConnector\CachePurge::register();
+\AktioConnector\IndexNow::register();
 \AktioConnector\Crawlers::register();
 \AktioConnector\Updates::register();
 if ( is_admin() ) {
@@ -56,5 +58,8 @@ add_action(
 	}
 );
 
+// IndexNow przed Crawlers: flush reguł rewrite (Crawlers::activate) ma już znać regułę klucza.
+register_activation_hook( __FILE__, array( '\\AktioConnector\\IndexNow', 'activate' ) );
 register_activation_hook( __FILE__, array( '\\AktioConnector\\Crawlers', 'activate' ) );
+register_deactivation_hook( __FILE__, array( '\\AktioConnector\\IndexNow', 'deactivate' ) );
 register_deactivation_hook( __FILE__, array( '\\AktioConnector\\Crawlers', 'deactivate' ) );

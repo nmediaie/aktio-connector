@@ -190,6 +190,7 @@ class Head {
 		if ( is_admin() || is_feed() ) {
 			return;
 		}
+		self::print_verification();
 		if ( Detector::owns( 'meta_description' ) ) {
 			$description = self::description();
 			if ( '' !== $description ) {
@@ -224,6 +225,31 @@ class Head {
 				echo '<meta name="' . esc_attr( $name ) . '" content="' . esc_attr( $content ) . '" />' . "\n";
 			}
 		}
+	}
+
+	/**
+	 * Kody weryfikacyjne Bing i Google (tylko strona główna). Kod Google pomijamy,
+	 * gdy aktywny jest Site Kit — on sam weryfikuje witrynę.
+	 */
+	public static function print_verification(): void {
+		if ( ! is_front_page() ) {
+			return;
+		}
+		$codes = Settings::get()['verification'];
+		if ( '' !== $codes['bing'] ) {
+			echo '<meta name="msvalidate.01" content="' . esc_attr( $codes['bing'] ) . '" />' . "\n";
+		}
+		if ( '' !== $codes['google'] && ! self::site_kit_active() ) {
+			echo '<meta name="google-site-verification" content="' . esc_attr( $codes['google'] ) . '" />' . "\n";
+		}
+	}
+
+	private static function site_kit_active(): bool {
+		$active = array_merge(
+			(array) get_option( 'active_plugins', array() ),
+			array_keys( (array) get_site_option( 'active_sitewide_plugins', array() ) )
+		);
+		return in_array( 'google-site-kit/google-site-kit.php', $active, true );
 	}
 
 	/**

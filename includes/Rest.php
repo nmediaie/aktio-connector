@@ -55,6 +55,16 @@ class Rest {
 			)
 		);
 
+		register_rest_route(
+			self::NAMESPACE,
+			'/indexnow/sitemap',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( __CLASS__, 'indexnow_sitemap' ),
+				'permission_callback' => self::permission( 'manage_options' ),
+			)
+		);
+
 		// Wejście (any-of); dokładna capability wg `type` sprawdzana w handlerze.
 		$update_caps = array( 'update_core', 'update_plugins', 'update_themes' );
 		register_rest_route(
@@ -118,9 +128,21 @@ class Rest {
 					'plugin'     => CachePurge::detected(),
 					'last_purge' => CachePurge::last(),
 				),
+				'indexnow'         => array(
+					'enabled' => Settings::get()['indexnow']['enabled'],
+					'last'    => IndexNow::last(),
+				),
 				'update_log'       => Updates::log( 5 ),
 			)
 		);
+	}
+
+	/**
+	 * POST indexnow/sitemap: zgłasza całą mapę (raz na 24 h, potem `aktio_rate_limited`).
+	 */
+	public static function indexnow_sitemap() {
+		$result = IndexNow::submit_sitemap();
+		return is_wp_error( $result ) ? $result : rest_ensure_response( $result );
 	}
 
 	/**
