@@ -103,16 +103,27 @@ class CachePurge {
 	 * Slug pierwszej aktywnej wtyczki cache albo null.
 	 */
 	public static function detected(): ?string {
+		$all = self::detected_all();
+		return $all ? $all[0] : null;
+	}
+
+	/**
+	 * Slugi wszystkich aktywnych wtyczek cache (np. cache stron + Cloudflare).
+	 *
+	 * @return string[]
+	 */
+	public static function detected_all(): array {
 		$active = array_merge(
 			(array) get_option( 'active_plugins', array() ),
 			array_keys( (array) get_site_option( 'active_sitewide_plugins', array() ) )
 		);
+		$found = array();
 		foreach ( self::plugins() as $slug => $plugin ) {
 			if ( in_array( $plugin['file'], $active, true ) ) {
-				return $slug;
+				$found[] = $slug;
 			}
 		}
-		return null;
+		return $found;
 	}
 
 	/**
@@ -143,6 +154,8 @@ class CachePurge {
 
 	/**
 	 * Zmiana dostępności produktu/wariantu: czyścimy stronę produktu (dla wariantu: rodzica).
+	 * Wtyczki bez API „jeden adres” pomijamy — czyszczenie całego cache przy każdej zmianie
+	 * stanu magazynowego (np. importy) byłoby kosztowne.
 	 *
 	 * @param int         $id      ID produktu lub wariantu.
 	 * @param string      $status  Nowy stan magazynowy.
@@ -155,29 +168,37 @@ class CachePurge {
 		}
 		$link = get_permalink( (int) $id );
 		if ( is_string( $link ) && '' !== $link ) {
-			self::url( $link );
+			self::run( 'url', $link, true );
 		}
 	}
 
-	private static function run( string $mode, string $url = '' ): bool {
-		$slug = self::detected();
-		if ( null === $slug ) {
-			return false;
-		}
-		$plugin = self::plugins()[ $slug ];
-		try {
-			if ( 'url' === $mode && isset( $plugin['url'] ) ) {
-				$done = $plugin['url']( $url );
-			} else {
-				$done = $plugin['all']();
+	/**
+	 * Czyści cache we WSZYSTKICH aktywnych wtyczkach; błąd jednej nie przerywa pozostałych.
+	 *
+	 * @param bool $url_only Pomijaj wtyczki bez API pojedynczego adresu.
+	 */
+	private static function run( string $mode, string $url = '', bool $url_only = false ): bool {
+		$plugins = self::plugins();
+		$any     = false;
+		foreach ( self::detected_all() as $slug ) {
+			$plugin = $plugins[ $slug ];
+			try {
+				if ( 'url' === $mode && isset( $plugin['url'] ) ) {
+					$done = $plugin['url']( $url );
+				} elseif ( 'url' === $mode && $url_only ) {
+					continue;
+				} else {
+					$done = $plugin['all']();
+				}
+			} catch ( \Throwable $e ) {
+				continue;
 			}
-		} catch ( \Throwable $e ) {
-			return false;
+			$any = $any || $done;
 		}
-		if ( $done ) {
+		if ( $any ) {
 			update_option( self::OPTION, gmdate( 'c' ), false );
 		}
-		return $done;
+		return $any;
 	}
 
 	/**

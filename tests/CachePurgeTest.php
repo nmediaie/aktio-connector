@@ -204,6 +204,41 @@ class CachePurgeTest extends WP_UnitTestCase {
 		$this->assertSame( array( array( 'w3tc_flush_url', get_permalink( $id ) ) ), AktioFakeCache::$calls );
 	}
 
+	public function test_stock_status_change_skips_plugins_without_single_url_api() {
+		$id = self::factory()->post->create();
+		$this->listen( 'breeze_clear_all_cache' );
+		$this->listen( 'cloudflare_purge_everything' );
+		foreach ( array( 'wp-fastest-cache/wpFastestCache.php', 'sg-cachepress/sg-cachepress.php', 'breeze/breeze.php', 'cloudflare/cloudflare.php' ) as $file ) {
+			$this->active = array( $file );
+			do_action( 'woocommerce_product_set_stock_status', $id, 'outofstock', null );
+			$this->assertSame( array(), AktioFakeCache::$calls, $file );
+		}
+		$this->assertNull( CachePurge::last() );
+	}
+
+	public function test_all_active_cache_plugins_are_purged() {
+		$this->active = array( 'w3-total-cache/w3-total-cache.php', 'cloudflare/cloudflare.php', 'wp-rocket/wp-rocket.php' );
+		$this->listen( 'cloudflare_purge_everything' );
+		$this->assertSame( 'wp-rocket', CachePurge::detected() );
+		$this->assertSame( array( 'wp-rocket', 'w3-total-cache', 'cloudflare' ), CachePurge::detected_all() );
+		$this->assertTrue( CachePurge::all() );
+		$this->assertSame(
+			array( array( 'rocket_clean_domain' ), array( 'w3tc_flush_all' ), array( 'cloudflare_purge_everything' ) ),
+			AktioFakeCache::$calls
+		);
+	}
+
+	public function test_url_purge_hits_every_plugin_with_url_api_and_all_for_the_rest() {
+		$this->active = array( 'w3-total-cache/w3-total-cache.php', 'wp-fastest-cache/wpFastestCache.php' );
+		$this->assertTrue( CachePurge::url( 'https://example.org/a/' ) );
+		$this->assertSame( array( array( 'w3tc_flush_url', 'https://example.org/a/' ), array( 'wpfc_clear_all_cache' ) ), AktioFakeCache::$calls );
+
+		AktioFakeCache::$calls = array();
+		$id                    = self::factory()->post->create();
+		do_action( 'woocommerce_product_set_stock_status', $id, 'outofstock', null );
+		$this->assertSame( array( array( 'w3tc_flush_url', get_permalink( $id ) ) ), AktioFakeCache::$calls );
+	}
+
 	public function test_variation_stock_status_change_purges_parent_url() {
 		$this->active = array( 'w3-total-cache/w3-total-cache.php' );
 		$parent       = self::factory()->post->create();
