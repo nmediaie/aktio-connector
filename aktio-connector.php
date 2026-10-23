@@ -33,6 +33,7 @@ require_once __DIR__ . '/includes/Seo/Head.php';
 require_once __DIR__ . '/includes/CachePurge.php';
 require_once __DIR__ . '/includes/IndexNow.php';
 require_once __DIR__ . '/includes/Metrics.php';
+require_once __DIR__ . '/includes/Faq.php';
 require_once __DIR__ . '/includes/Crawlers.php';
 require_once __DIR__ . '/includes/Health.php';
 require_once __DIR__ . '/includes/Admin/SettingsPage.php';
@@ -47,6 +48,7 @@ require_once __DIR__ . '/includes/Admin/SettingsPage.php';
 \AktioConnector\CachePurge::register();
 \AktioConnector\IndexNow::register();
 \AktioConnector\Metrics::register();
+\AktioConnector\Faq::register();
 \AktioConnector\Crawlers::register();
 \AktioConnector\Updates::register();
 if ( is_admin() ) {
