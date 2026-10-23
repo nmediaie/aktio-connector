@@ -65,6 +65,26 @@ class Rest {
 			)
 		);
 
+		register_rest_route(
+			self::NAMESPACE,
+			'/beacon',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( Metrics::class, 'beacon' ),
+				'permission_callback' => '__return_true',
+			)
+		);
+
+		register_rest_route(
+			self::NAMESPACE,
+			'/metrics',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( __CLASS__, 'metrics' ),
+				'permission_callback' => self::permission( 'manage_options' ),
+			)
+		);
+
 		// Wejście (any-of); dokładna capability wg `type` sprawdzana w handlerze.
 		$update_caps = array( 'update_core', 'update_plugins', 'update_themes' );
 		register_rest_route(
@@ -135,6 +155,13 @@ class Rest {
 				'update_log'       => Updates::log( 5 ),
 			)
 		);
+	}
+
+	/**
+	 * GET metrics?days=30: liczniki botów AI i ruchu z wyszukiwarek AI.
+	 */
+	public static function metrics( \WP_REST_Request $request ): \WP_REST_Response {
+		return rest_ensure_response( Metrics::report( (int) ( $request->get_param( 'days' ) ?? 30 ) ) );
 	}
 
 	/**
