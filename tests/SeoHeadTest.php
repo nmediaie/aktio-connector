@@ -266,6 +266,44 @@ class SeoHeadTest extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'Bez własnego', wp_get_document_title() );
 	}
 
+	public function test_custom_title_does_not_decode_entities_into_markup() {
+		$id = $this->post();
+		update_post_meta( $id, '_aktio_seo_title', '&lt;/title&gt;&lt;script&gt;alert(1)&lt;/script&gt;' );
+		$this->go_to( get_permalink( $id ) );
+		ob_start();
+		_wp_render_title_tag();
+		$html = (string) ob_get_clean();
+		$this->assertStringNotContainsString( '</title><script>', $html );
+		$this->assertStringNotContainsString( '<script>', $html );
+
+		// Wartość zapisana z pominięciem sanitize_callback (np. import) też nie wychodzi surowa.
+		global $wpdb;
+		$wpdb->update( $wpdb->postmeta, array( 'meta_value' => '</title><script>alert(1)</script>' ), array( 'post_id' => $id, 'meta_key' => '_aktio_seo_title' ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+		wp_cache_delete( $id, 'post_meta' );
+		ob_start();
+		_wp_render_title_tag();
+		$html = (string) ob_get_clean();
+		$this->assertStringNotContainsString( '<script>', $html );
+	}
+
+	public function test_password_protected_description_not_leaked_after_password_entered() {
+		$id = $this->post( array( 'post_password' => 'haslo', 'post_content' => 'tajna tresc' ) );
+		// Symulacja wpisanego hasła (cookie): rdzeń uznaje, że hasło nie jest już wymagane.
+		add_filter( 'post_password_required', '__return_false' );
+		$this->go_to( get_permalink( $id ) );
+		$this->assertSame( '', Head::description() );
+		$this->assertStringNotContainsString( 'tajna tresc', $this->head() );
+		remove_filter( 'post_password_required', '__return_false' );
+	}
+
+	public function test_robots_keep_core_nofollow_on_noindex_pages() {
+		$this->go_to( home_url( '/?s=kubek' ) );
+		$robots = Head::filter_robots( array( 'nofollow' => true ) );
+		$this->assertTrue( $robots['noindex'] );
+		$this->assertTrue( $robots['follow'] );
+		$this->assertTrue( $robots['nofollow'] );
+	}
+
 	public function test_noindex_on_search_cart_checkout_account_attachments_empty_tags_single_author() {
 		$id = $this->post();
 		$this->go_to( get_permalink( $id ) );

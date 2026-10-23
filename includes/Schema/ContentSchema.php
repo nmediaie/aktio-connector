@@ -192,7 +192,7 @@ class ContentSchema {
 
 	private static function description( \WP_Post $post ): string {
 		// Treść chronioną hasłem lub niepublikowaną nie wypisujemy do <head>.
-		if ( 'publish' !== $post->post_status || post_password_required( $post ) ) {
+		if ( 'publish' !== $post->post_status || '' !== $post->post_password ) {
 			return '';
 		}
 		$text = '' !== trim( $post->post_excerpt ) ? $post->post_excerpt : $post->post_content;

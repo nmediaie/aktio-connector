@@ -117,7 +117,7 @@ class Faq {
 	 */
 	private static function items_from_post( \WP_Post $post ): array {
 		$items = array();
-		if ( 'publish' !== $post->post_status || post_password_required( $post ) ) {
+		if ( 'publish' !== $post->post_status || '' !== $post->post_password ) {
 			return $items;
 		}
 		self::collect_blocks( parse_blocks( $post->post_content ), $items );

@@ -107,6 +107,16 @@ class FaqTest extends WP_UnitTestCase {
 		$this->assertSame( 'Ile?', $nodes[0]['mainEntity'][0]['name'] );
 	}
 
+	public function test_password_protected_post_faq_not_in_graph_after_password_entered() {
+		$id = self::factory()->post->create(
+			array( 'post_password' => 'haslo', 'post_content' => $this->block( 'Sekret?', 'Tak.' ) )
+		);
+		add_filter( 'post_password_required', '__return_false' );
+		$this->go_to( get_permalink( $id ) );
+		$this->assertSame( array(), $this->faq_nodes() );
+		remove_filter( 'post_password_required', '__return_false' );
+	}
+
 	public function test_no_faq_no_node() {
 		$id = self::factory()->post->create( array( 'post_content' => 'Zwykły tekst.' ) );
 		$this->go_to( get_permalink( $id ) );

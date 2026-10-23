@@ -59,7 +59,7 @@ class Head {
 				return $own;
 			}
 			// Treści chronionej hasłem lub niepublikowanej nie wypisujemy do <head>.
-			if ( 'publish' !== $object->post_status || post_password_required( $object ) ) {
+			if ( 'publish' !== $object->post_status || '' !== $object->post_password ) {
 				return '';
 			}
 			if ( 'product' === $object->post_type && function_exists( 'wc_get_product' ) ) {
@@ -270,8 +270,9 @@ class Head {
 		if ( ! $object ) {
 			return $title;
 		}
-		$own = Graph::plain( (string) Fields::title_for( $object ), 200 );
-		return '' !== $own ? $own : $title;
+		// Rdzeń wypisuje wynik pre_get_document_title bez escapowania — nie dekodujemy encji (stored XSS) i escapujemy sami.
+		$own = trim( wp_strip_all_tags( (string) Fields::title_for( $object ) ) );
+		return '' !== $own ? esc_html( $own ) : $title;
 	}
 
 	/**
@@ -283,7 +284,6 @@ class Head {
 		}
 		$robots['noindex'] = true;
 		$robots['follow']  = true;
-		unset( $robots['nofollow'] );
 		return $robots;
 	}
 
