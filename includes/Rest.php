@@ -109,6 +109,7 @@ class Rest {
 				'version'     => AKTIO_CONNECTOR_VERSION,
 				'woocommerce' => class_exists( 'WooCommerce' ),
 				'features'    => Detector::features(),
+				'seo'         => array_intersect_key( Detector::features(), array_flip( Detector::SEO_FEATURES ) ),
 				'seo_plugins' => Detector::seo_plugins(),
 				'company'     => Settings::get()['company'],
 				'update_log'  => Updates::log( 5 ),
