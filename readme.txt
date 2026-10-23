@@ -4,7 +4,7 @@ Tags: schema, llms.txt, robots.txt, ai, woocommerce
 Requires at least: 6.2
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 0.1.1
+Stable tag: 0.1.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -16,13 +16,13 @@ Aktio Connector makes a WordPress site easier for search engines and AI bots to 
 
 **What the plugin does**
 
-* **schema.org structured data (JSON-LD):** the business (Organization or LocalBusiness), the website, pages, articles and breadcrumbs. With WooCommerce also products (Product, ProductGroup, offers and ratings).
+* **schema.org structured data (JSON-LD):** the business (Organization or LocalBusiness), the website, pages, articles and breadcrumbs. With WooCommerce also products (Product, ProductGroup, offers and ratings) and, if you choose to declare them, a default brand, a return policy and fallback shipping details.
 * **robots.txt for AI bots:** appends a block for GPTBot, OAI-SearchBot, ClaudeBot, PerplexityBot, Google-Extended and Applebot-Extended at the end of robots.txt. Bots are allowed by default and you can block each one in the settings.
 * **llms.txt:** serves `/llms.txt` with a list of pages, recent posts and products. Password-protected and unpublished content is left out.
 * **Site Health over REST:** Site Health test results and environment information available to logged-in administrators through `aktio/v1/health`.
 * **Updates over REST with a log:** the list of available core, plugin and theme updates and a way to apply them through `aktio/v1/updates`. Every update is written to a log (the last 50 entries) shown in the settings. The plugin never rolls anything back automatically.
 
-You edit the business details and bot settings under **Settings → Aktio Connector**. The screen also shows which features are provided by this plugin and which by another SEO plugin or a physical file, plus the update log.
+You edit the business details, bot settings and (with WooCommerce) the merchant data under **Settings → Aktio Connector**. The screen also shows which features are provided by this plugin and which by another SEO plugin or a physical file, plus the update log.
 
 **Privacy and security**
 
@@ -63,6 +63,10 @@ No. Updates over REST are performed only by an authenticated user with the right
 Yes. Under **Settings → Aktio Connector** choose "Block" next to any of the six bots. The block is not added when the site is set to discourage search engines.
 
 == Changelog ==
+
+= 0.1.2 =
+* WooCommerce: new Merchant section in the settings (also available to Aktio over `aktio/v1/visibility`): a default brand for products without their own brand, a declared return policy (`hasMerchantReturnPolicy`) and fallback shipping details (`shippingDetails`) used only when WooCommerce shipping zones give nothing. Both declarations are off by default and invalid values are rejected rather than corrected.
+* Nothing from the Merchant section is added when an SEO plugin provides the product schema.
 
 = 0.1.1 =
 * robots.txt: only bots set to "Block" get a group (`Disallow: /`); allowed bots follow `User-agent: *`, and bots already named in robots.txt (for example by an SEO plugin) are left untouched.

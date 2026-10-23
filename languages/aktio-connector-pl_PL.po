@@ -1,8 +1,6 @@
-# Copyright (C) 2026 NM Media
-# This file is distributed under the GPL-2.0-or-later.
 msgid ""
 msgstr ""
-"Project-Id-Version: Aktio Connector 0.1.1\n"
+"Project-Id-Version: Aktio Connector 0.1.2\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/aktio-connector\n"
 "Last-Translator: NM Media\n"
 "Language-Team: Polish\n"
@@ -10,7 +8,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "POT-Creation-Date: 2026-10-22T22:24:45+00:00\n"
-"PO-Revision-Date: 2026-10-22 22:30+0000\n"
+"PO-Revision-Date: 2026-10-23 12:00+0000\n"
 "Language: pl_PL\n"
 "Plural-Forms: nplurals=3; plural=(n==1 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
 "X-Generator: WP-CLI 2.12.0\n"
@@ -20,7 +18,7 @@ msgstr ""
 #: aktio-connector.php
 #: includes/Admin/SettingsPage.php:31
 #: includes/Admin/SettingsPage.php:32
-#: includes/Admin/SettingsPage.php:87
+#: includes/Admin/SettingsPage.php:171
 msgid "Aktio Connector"
 msgstr "Aktio Connector"
 
@@ -42,186 +40,187 @@ msgstr "Ustawienia"
 msgid "You are not allowed to change these settings."
 msgstr "Brak uprawnień do zmiany tych ustawień."
 
-#: includes/Admin/SettingsPage.php:89
+#: includes/Admin/SettingsPage.php:173
 msgid "Settings saved."
 msgstr "Ustawienia zapisane."
 
-#: includes/Admin/SettingsPage.php:91
+#: includes/Admin/SettingsPage.php:178
 msgid "Connection to Aktio: this plugin works on its own; Aktio uses it through an application password."
 msgstr "Połączenie z Aktio: ta wtyczka działa samodzielnie; Aktio korzysta z niej przez hasło aplikacji."
 
-#: includes/Admin/SettingsPage.php:97
+#: includes/Admin/SettingsPage.php:184
 msgid "Company"
 msgstr "Firma"
 
-#: includes/Admin/SettingsPage.php:98
+#: includes/Admin/SettingsPage.php:185
 msgid "This data goes into schema.org markup (Organization or LocalBusiness). An empty name means the site title."
 msgstr "Dane trafiają do schema.org (Organization lub LocalBusiness). Puste pole nazwy oznacza nazwę witryny."
 
-#: includes/Admin/SettingsPage.php:100
+#: includes/Admin/SettingsPage.php:187
 msgid "Company name"
 msgstr "Nazwa firmy"
 
-#: includes/Admin/SettingsPage.php:101
+#: includes/Admin/SettingsPage.php:188
 msgid "Type"
 msgstr "Typ"
 
-#: includes/Admin/SettingsPage.php:107
+#: includes/Admin/SettingsPage.php:194
 msgid "Logo URL"
 msgstr "Adres URL logo"
 
-#: includes/Admin/SettingsPage.php:108
+#: includes/Admin/SettingsPage.php:195
 msgid "Phone"
 msgstr "Telefon"
 
-#: includes/Admin/SettingsPage.php:109
+#: includes/Admin/SettingsPage.php:196
 msgid "Email"
 msgstr "E-mail"
 
-#: includes/Admin/SettingsPage.php:110
+#: includes/Admin/SettingsPage.php:197
 msgid "Street and number"
 msgstr "Ulica i numer"
 
-#: includes/Admin/SettingsPage.php:111
+#: includes/Admin/SettingsPage.php:198
 msgid "City"
 msgstr "Miasto"
 
-#: includes/Admin/SettingsPage.php:112
+#: includes/Admin/SettingsPage.php:199
 msgid "Postal code"
 msgstr "Kod pocztowy"
 
-#: includes/Admin/SettingsPage.php:113
+#: includes/Admin/SettingsPage.php:200
+#: includes/Admin/SettingsPage.php:276
 msgid "Country"
 msgstr "Kraj"
 
-#: includes/Admin/SettingsPage.php:114
+#: includes/Admin/SettingsPage.php:201
 msgid "Social profiles (sameAs)"
 msgstr "Profile w sieci (sameAs)"
 
-#: includes/Admin/SettingsPage.php:116
+#: includes/Admin/SettingsPage.php:203
 msgid "One URL per line, up to 10."
 msgstr "Jeden adres URL w wierszu, maksymalnie 10."
 
-#: includes/Admin/SettingsPage.php:119
+#: includes/Admin/SettingsPage.php:206
 msgid "AI bots in robots.txt"
 msgstr "Boty AI w robots.txt"
 
-#: includes/Admin/SettingsPage.php:126
+#: includes/Admin/SettingsPage.php:213
 msgid "Allow"
 msgstr "Dopuść"
 
-#: includes/Admin/SettingsPage.php:127
+#: includes/Admin/SettingsPage.php:214
 msgid "Block"
 msgstr "Zablokuj"
 
-#: includes/Admin/SettingsPage.php:132
+#: includes/Admin/SettingsPage.php:221
 msgid "Save changes"
 msgstr "Zapisz zmiany"
 
-#: includes/Admin/SettingsPage.php:149
+#: includes/Admin/SettingsPage.php:355
 msgid "Content schema"
 msgstr "Schema treści"
 
-#: includes/Admin/SettingsPage.php:150
+#: includes/Admin/SettingsPage.php:356
 msgid "Product schema"
 msgstr "Schema produktów"
 
-#: includes/Admin/SettingsPage.php:151
+#: includes/Admin/SettingsPage.php:357
 msgid "robots.txt"
 msgstr "robots.txt"
 
-#: includes/Admin/SettingsPage.php:152
+#: includes/Admin/SettingsPage.php:358
 msgid "llms.txt"
 msgstr "llms.txt"
 
-#: includes/Admin/SettingsPage.php:156
+#: includes/Admin/SettingsPage.php:362
 msgid "Feature status"
 msgstr "Stan funkcji"
 
 #. translators: %s: feature name, e.g. robots.txt
-#: includes/Admin/SettingsPage.php:164
+#: includes/Admin/SettingsPage.php:370
 #, php-format
 msgid "%s comes from a physical file in the site directory — Aktio Connector does not duplicate it."
 msgstr "%s pochodzi z fizycznego pliku w katalogu witryny — Aktio Connector go nie dubluje."
 
 #. translators: 1: feature name, 2: plugin name
-#: includes/Admin/SettingsPage.php:167
+#: includes/Admin/SettingsPage.php:373
 #, php-format
 msgid "%1$s is provided by %2$s — Aktio Connector does not duplicate it."
 msgstr "%1$s dostarcza %2$s — Aktio Connector go nie dubluje."
 
-#: includes/Admin/SettingsPage.php:170
+#: includes/Admin/SettingsPage.php:376
 msgid "Unavailable (requires WooCommerce)."
 msgstr "Niedostępne (wymaga WooCommerce)."
 
-#: includes/Admin/SettingsPage.php:175
+#: includes/Admin/SettingsPage.php:381
 msgid "Active — provided by Aktio Connector."
 msgstr "Aktywne — dostarcza Aktio Connector."
 
 #. translators: %s: list of SEO plugin names
-#: includes/Admin/SettingsPage.php:185
+#: includes/Admin/SettingsPage.php:391
 #, php-format
 msgid "Detected active SEO plugins: %s."
 msgstr "Wykryte aktywne wtyczki SEO: %s."
 
-#: includes/Admin/SettingsPage.php:192
+#: includes/Admin/SettingsPage.php:398
 msgid "Update log"
 msgstr "Dziennik aktualizacji"
 
-#: includes/Admin/SettingsPage.php:194
+#: includes/Admin/SettingsPage.php:400
 msgid "No entries."
 msgstr "Brak wpisów."
 
-#: includes/Admin/SettingsPage.php:198
+#: includes/Admin/SettingsPage.php:404
 msgid "Date (UTC)"
 msgstr "Data (UTC)"
 
-#: includes/Admin/SettingsPage.php:198
+#: includes/Admin/SettingsPage.php:404
 msgid "Item"
 msgstr "Element"
 
-#: includes/Admin/SettingsPage.php:198
+#: includes/Admin/SettingsPage.php:404
 msgid "Version"
 msgstr "Wersja"
 
-#: includes/Admin/SettingsPage.php:198
+#: includes/Admin/SettingsPage.php:404
 msgid "Result"
 msgstr "Wynik"
 
-#: includes/Admin/SettingsPage.php:198
+#: includes/Admin/SettingsPage.php:404
 msgid "By"
 msgstr "Przez"
 
 #: includes/Rest.php:100
-#: includes/Rest.php:227
+#: includes/Rest.php:241
 msgid "You are not allowed to perform this operation."
 msgstr "Brak uprawnień do tej operacji."
 
-#: includes/Rest.php:141
+#: includes/Rest.php:142
 msgid "The request body must be a JSON object."
 msgstr "Body musi być obiektem JSON."
 
 #. translators: %s: field name
-#: includes/Rest.php:146
+#: includes/Rest.php:147
 #, php-format
 msgid "The %s field must be an object."
 msgstr "Pole %s musi być obiektem."
 
-#: includes/Rest.php:172
-#: includes/Rest.php:197
+#: includes/Rest.php:186
+#: includes/Rest.php:211
 msgid "The item field (string) is required."
 msgstr "Pole item (tekst) jest wymagane."
 
-#: includes/Rest.php:191
+#: includes/Rest.php:205
 msgid "Invalid types for the item/enabled/core_level fields."
 msgstr "Nieprawidłowe typy pól item/enabled/core_level."
 
-#: includes/Rest.php:222
+#: includes/Rest.php:236
 #: includes/Updates.php:467
 msgid "type must be one of: core, plugin, theme."
 msgstr "type musi być jednym z: core, plugin, theme."
 
-#: includes/Schema/ProductSchema.php:363
+#: includes/Schema/ProductSchema.php:471
 msgid "Anonymous"
 msgstr "Anonim"
 
@@ -262,7 +261,169 @@ msgid "No such item was found on this site."
 msgstr "Nie znaleziono takiego elementu na stronie."
 
 #. translators: %s: SEO plugin name
-#: includes/Admin/SettingsPage.php:173
+#: includes/Admin/SettingsPage.php:379
 #, php-format
 msgid "Aktio Connector adds AI-bot rules to the robots.txt generated by %s."
 msgstr "Aktio Connector dopisuje reguły botów AI do robots.txt generowanego przez %s."
+
+#: includes/Admin/SettingsPage.php:233
+msgid "Settings were not saved. Fix the following fields:"
+msgstr "Ustawienia nie zostały zapisane. Popraw poniższe pola:"
+
+#: includes/Admin/SettingsPage.php:247
+msgid "Merchant"
+msgstr "Dane sprzedawcy (Google)"
+
+#: includes/Admin/SettingsPage.php:248
+msgid "Used when they cannot be read from WooCommerce. You declare this data to Google — enter it in line with your store terms."
+msgstr "Używane, gdy nie da się ich odczytać z WooCommerce. Deklarujesz te dane wobec Google — wpisz zgodne z regulaminem sklepu."
+
+#: includes/Admin/SettingsPage.php:253
+msgid "Default brand"
+msgstr "Marka domyślna"
+
+#: includes/Admin/SettingsPage.php:255
+msgid "Used for products without their own brand. Empty means no default brand."
+msgstr "Używana dla produktów bez własnej marki. Puste pole oznacza brak marki domyślnej."
+
+#: includes/Admin/SettingsPage.php:259
+msgid "Return policy"
+msgstr "Polityka zwrotów"
+
+#: includes/Admin/SettingsPage.php:261
+msgid "Declare a return policy"
+msgstr "Deklaruj politykę zwrotów"
+
+#: includes/Admin/SettingsPage.php:261
+msgid "Add the return policy to product offers"
+msgstr "Dodaj politykę zwrotów do ofert produktów"
+
+#: includes/Admin/SettingsPage.php:262
+msgid "Return window (days)"
+msgstr "Okres na zwrot (dni)"
+
+#: includes/Admin/SettingsPage.php:262
+msgid "0 means returns are not accepted."
+msgstr "0 oznacza, że zwroty nie są przyjmowane."
+
+#: includes/Admin/SettingsPage.php:265
+msgid "Return costs"
+msgstr "Koszty zwrotu"
+
+#: includes/Admin/SettingsPage.php:271
+msgid "Paid by the customer"
+msgstr "Płaci klient"
+
+#: includes/Admin/SettingsPage.php:272
+msgid "Free returns"
+msgstr "Bezpłatne zwroty"
+
+#: includes/Admin/SettingsPage.php:276
+msgid "Two-letter ISO country code, for example PL. Empty means no policy is emitted."
+msgstr "Dwuliterowy kod kraju ISO, na przykład PL. Puste pole oznacza, że polityka nie jest dodawana."
+
+#: includes/Admin/SettingsPage.php:279
+msgid "Return method"
+msgstr "Sposób zwrotu"
+
+#: includes/Admin/SettingsPage.php:285
+msgid "By mail"
+msgstr "Pocztą"
+
+#: includes/Admin/SettingsPage.php:286
+msgid "In store"
+msgstr "W sklepie"
+
+#: includes/Admin/SettingsPage.php:287
+msgid "By mail or in store"
+msgstr "Pocztą lub w sklepie"
+
+#: includes/Admin/SettingsPage.php:293
+msgid "Fallback shipping"
+msgstr "Wysyłka zastępcza"
+
+#: includes/Admin/SettingsPage.php:295
+msgid "Declare fallback shipping"
+msgstr "Deklaruj wysyłkę zastępczą"
+
+#: includes/Admin/SettingsPage.php:295
+msgid "Add shipping details when WooCommerce zones do not provide them"
+msgstr "Dodaj dane wysyłki, gdy strefy WooCommerce ich nie dostarczają"
+
+#: includes/Admin/SettingsPage.php:296
+msgid "Destination country"
+msgstr "Kraj docelowy"
+
+#. translators: %s: shop currency code, e.g. PLN
+#: includes/Admin/SettingsPage.php:300
+#, php-format
+msgid "Shipping cost (%s)"
+msgstr "Koszt wysyłki (%s)"
+
+#: includes/Admin/SettingsPage.php:302
+msgid "Amount in the shop currency, up to 2 decimal places, for example 12.50. 0.00 means free shipping."
+msgstr "Kwota w walucie sklepu, do 2 miejsc po przecinku, na przykład 12.50. 0.00 oznacza bezpłatną wysyłkę."
+
+#: includes/Admin/SettingsPage.php:304
+msgid "Handling time (days)"
+msgstr "Czas realizacji zamówienia (dni)"
+
+#: includes/Admin/SettingsPage.php:304
+msgid "From – to, 0 to 30 days."
+msgstr "Od – do, 0 do 30 dni."
+
+#: includes/Admin/SettingsPage.php:305
+msgid "Delivery time (days)"
+msgstr "Czas dostawy (dni)"
+
+#: includes/Admin/SettingsPage.php:305
+msgid "From – to, 0 to 60 days."
+msgstr "Od – do, 0 do 60 dni."
+
+#. translators: %s: field path, e.g. merchant.shipping
+#: includes/Settings.php:182
+#, php-format
+msgid "%s must be an object."
+msgstr "Pole %s musi być obiektem."
+
+#. translators: %s: field path
+#: includes/Settings.php:185
+#, php-format
+msgid "%s must be true or false."
+msgstr "Pole %s musi mieć wartość true albo false."
+
+#. translators: 1: field path, 2: minimum, 3: maximum
+#: includes/Settings.php:188
+#, php-format
+msgid "%1$s must be an integer from %2$d to %3$d."
+msgstr "Pole %1$s musi być liczbą całkowitą od %2$d do %3$d."
+
+#. translators: 1: field path, 2: allowed values
+#: includes/Settings.php:191
+#, php-format
+msgid "%1$s must be one of: %2$s."
+msgstr "Pole %1$s musi mieć jedną z wartości: %2$s."
+
+#. translators: %s: field path
+#: includes/Settings.php:194
+#, php-format
+msgid "%s must be a two-letter uppercase ISO country code (for example PL) or an empty string."
+msgstr "Pole %s musi być dwuliterowym kodem kraju ISO wielkimi literami (na przykład PL) albo pustym tekstem."
+
+#. translators: %s: field path
+#: includes/Settings.php:197
+#, php-format
+msgid "%s must be a non-negative decimal amount with at most 2 decimal places and up to 10 characters (for example 12.50)."
+msgstr "Pole %s musi być nieujemną kwotą dziesiętną z co najwyżej 2 miejscami po przecinku i do 10 znaków (na przykład 12.50)."
+
+#. translators: 1: field path, 2: minimum, 3: maximum
+#: includes/Settings.php:200
+#, php-format
+msgid "%1$s must be a pair [min, max] of integers from %2$d to %3$d, with min not greater than max."
+msgstr "Pole %1$s musi być parą [min, max] liczb całkowitych od %2$d do %3$d, przy czym min nie może być większe od max."
+
+#. translators: 1: field path, 2: maximum length
+#: includes/Settings.php:203
+#, php-format
+msgid "%1$s must be a string of at most %2$d characters."
+msgstr "Pole %1$s musi być tekstem o długości najwyżej %2$d znaków."

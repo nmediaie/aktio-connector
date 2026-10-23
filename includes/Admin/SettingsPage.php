@@ -1,6 +1,6 @@
 <?php
 /**
- * Ekran Ustawienia → Aktio Connector: dane firmy i boty AI (edycja), stan funkcji
+ * Ekran Ustawienia → Aktio Connector: dane firmy, boty AI i pola sprzedawcy (edycja), stan funkcji
  * i dziennik aktualizacji (tylko do odczytu). Działa bez Aktio.
  *
  * @package AktioConnector
@@ -50,16 +50,27 @@ class SettingsPage {
 		if ( ! current_user_can( 'manage_options' ) ) {
 			wp_die( esc_html__( 'You are not allowed to change these settings.', 'aktio-connector' ), '', array( 'response' => 403 ) );
 		}
-		$post = wp_unslash( $_POST ); // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce sprawdzony wyżej, wartości sanityzuje Settings::update().
-		self::save( is_array( $post ) ? $post : array() );
-		wp_safe_redirect( add_query_arg( array( 'page' => self::SLUG, 'saved' => '1' ), admin_url( 'options-general.php' ) ) );
+		$post   = wp_unslash( $_POST ); // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce sprawdzony wyżej, wartości sanityzuje Settings::update().
+		$errors = self::save( is_array( $post ) ? $post : array() );
+		$flag   = array( 'saved' => '1' );
+		if ( $errors ) {
+			// Komunikaty przechodzą przez krótkotrwały transient użytkownika (przekierowanie PRG).
+			set_transient( self::errors_key(), array_values( $errors ), 5 * MINUTE_IN_SECONDS );
+			$flag = array( 'invalid' => '1' );
+		}
+		wp_safe_redirect( add_query_arg( array_merge( array( 'page' => self::SLUG ), $flag ), admin_url( 'options-general.php' ) ) );
 		exit;
 	}
 
+	private static function errors_key(): string {
+		return 'aktio_connector_errors_' . get_current_user_id();
+	}
+
 	/**
-	 * Zapis pól z formularza (sanityzacja w Settings::update).
+	 * Zapis pól z formularza (sanityzacja w Settings::update). Błędy walidacji pól
+	 * sprzedawcy blokują cały zapis (ustawienia bez zmian); zwraca ścieżka pola → komunikat.
 	 */
-	public static function save( array $post ): void {
+	public static function save( array $post ): array {
 		$partial = array();
 		if ( isset( $post['company'] ) && is_array( $post['company'] ) ) {
 			$company = $post['company'];
@@ -71,7 +82,80 @@ class SettingsPage {
 		if ( isset( $post['bots'] ) && is_array( $post['bots'] ) ) {
 			$partial['bots'] = $post['bots'];
 		}
+		if ( isset( $post['merchant'] ) && is_array( $post['merchant'] ) ) {
+			$partial['merchant'] = self::merchant_from_post( $post['merchant'] );
+		}
+		$errors = Settings::merchant_errors( $partial );
+		if ( $errors ) {
+			return $errors;
+		}
 		Settings::update( $partial );
+		return array();
+	}
+
+	/**
+	 * Wartości formularza (same teksty) → typy wymagane przez Settings. Tu tylko zamiana
+	 * typów i drobna normalizacja wpisu (przecinek dziesiętny, wielkość liter kraju);
+	 * wartości, których nie da się zamienić, zostają tekstem i walidacja je odrzuci.
+	 */
+	private static function merchant_from_post( array $m ): array {
+		$int  = static function ( $value ) {
+			$value = is_string( $value ) ? trim( $value ) : $value;
+			return is_string( $value ) && 1 === preg_match( '/^-?\d+$/', $value ) ? (int) $value : $value;
+		};
+		$pair = static function ( $value ) use ( $int ) {
+			if ( ! is_array( $value ) ) {
+				return $value;
+			}
+			return array_map( $int, $value );
+		};
+		$country = static function ( $value ) {
+			return is_string( $value ) ? strtoupper( trim( $value ) ) : $value;
+		};
+
+		$out = array();
+		if ( array_key_exists( 'default_brand', $m ) ) {
+			$out['default_brand'] = is_string( $m['default_brand'] ) ? trim( $m['default_brand'] ) : $m['default_brand'];
+		}
+		if ( isset( $m['return_policy'] ) && is_array( $m['return_policy'] ) ) {
+			$rp  = $m['return_policy'];
+			$new = array();
+			if ( array_key_exists( 'enabled', $rp ) ) {
+				$new['enabled'] = '1' === $rp['enabled'];
+			}
+			if ( array_key_exists( 'days', $rp ) ) {
+				$new['days'] = $int( $rp['days'] );
+			}
+			foreach ( array( 'fees', 'method' ) as $key ) {
+				if ( array_key_exists( $key, $rp ) ) {
+					$new[ $key ] = $rp[ $key ];
+				}
+			}
+			if ( array_key_exists( 'country', $rp ) ) {
+				$new['country'] = $country( $rp['country'] );
+			}
+			$out['return_policy'] = $new;
+		}
+		if ( isset( $m['shipping'] ) && is_array( $m['shipping'] ) ) {
+			$sh  = $m['shipping'];
+			$new = array();
+			if ( array_key_exists( 'enabled', $sh ) ) {
+				$new['enabled'] = '1' === $sh['enabled'];
+			}
+			if ( array_key_exists( 'country', $sh ) ) {
+				$new['country'] = $country( $sh['country'] );
+			}
+			if ( array_key_exists( 'cost', $sh ) ) {
+				$new['cost'] = is_string( $sh['cost'] ) ? str_replace( ',', '.', trim( $sh['cost'] ) ) : $sh['cost'];
+			}
+			foreach ( array( 'handling_days', 'transit_days' ) as $key ) {
+				if ( array_key_exists( $key, $sh ) ) {
+					$new[ $key ] = $pair( $sh[ $key ] );
+				}
+			}
+			$out['shipping'] = $new;
+		}
+		return $out;
 	}
 
 	public static function render(): void {
@@ -87,6 +171,9 @@ class SettingsPage {
 		echo '<h1>' . esc_html__( 'Aktio Connector', 'aktio-connector' ) . '</h1>';
 		if ( isset( $_GET['saved'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- tylko komunikat.
 			echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Settings saved.', 'aktio-connector' ) . '</p></div>';
+		}
+		if ( isset( $_GET['invalid'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- tylko komunikat.
+			self::render_errors();
 		}
 		echo '<p>' . esc_html__( 'Connection to Aktio: this plugin works on its own; Aktio uses it through an application password.', 'aktio-connector' ) . '</p>';
 
@@ -129,12 +216,131 @@ class SettingsPage {
 		}
 		echo '</tbody></table>';
 
+		self::render_merchant( $settings['merchant'], (string) $company['name'] );
+
 		submit_button( __( 'Save changes', 'aktio-connector' ) );
 		echo '</form>';
 
 		self::render_features();
 		self::render_log();
 		echo '</div>';
+	}
+
+	/** Komunikat błędu walidacji (ustawienia nie zostały zapisane). */
+	private static function render_errors(): void {
+		$errors = get_transient( self::errors_key() );
+		delete_transient( self::errors_key() );
+		echo '<div class="notice notice-error"><p><strong>' . esc_html__( 'Settings were not saved. Fix the following fields:', 'aktio-connector' ) . '</strong></p><ul>';
+		foreach ( is_array( $errors ) ? $errors : array() as $message ) {
+			echo '<li>' . esc_html( (string) $message ) . '</li>';
+		}
+		echo '</ul></div>';
+	}
+
+	/**
+	 * Sekcja „Merchant”: marka domyślna, polityka zwrotów i wysyłka zastępcza.
+	 */
+	private static function render_merchant( array $merchant, string $company_name ): void {
+		$rp = $merchant['return_policy'];
+		$sh = $merchant['shipping'];
+
+		echo '<h2>' . esc_html__( 'Merchant', 'aktio-connector' ) . '</h2>';
+		echo '<p class="description">' . esc_html__( 'Used when they cannot be read from WooCommerce. You declare this data to Google — enter it in line with your store terms.', 'aktio-connector' ) . '</p>';
+
+		echo '<table class="form-table" role="presentation"><tbody>';
+		self::merchant_row(
+			'aktio-merchant-brand',
+			__( 'Default brand', 'aktio-connector' ),
+			'<input type="text" id="aktio-merchant-brand" name="merchant[default_brand]" value="' . esc_attr( (string) $merchant['default_brand'] ) . '" placeholder="' . esc_attr( $company_name ) . '" maxlength="100" class="regular-text" />',
+			__( 'Used for products without their own brand. Empty means no default brand.', 'aktio-connector' )
+		);
+		echo '</tbody></table>';
+
+		echo '<h3>' . esc_html__( 'Return policy', 'aktio-connector' ) . '</h3>';
+		echo '<table class="form-table" role="presentation"><tbody>';
+		self::merchant_row( 'aktio-merchant-rp-enabled', __( 'Declare a return policy', 'aktio-connector' ), self::checkbox( 'aktio-merchant-rp-enabled', 'merchant[return_policy][enabled]', (bool) $rp['enabled'], __( 'Add the return policy to product offers', 'aktio-connector' ) ) );
+		self::merchant_row( 'aktio-merchant-rp-days', __( 'Return window (days)', 'aktio-connector' ), self::number( 'aktio-merchant-rp-days', 'merchant[return_policy][days]', (int) $rp['days'], 0, 365 ), __( '0 means returns are not accepted.', 'aktio-connector' ) );
+		self::merchant_row(
+			'aktio-merchant-rp-fees',
+			__( 'Return costs', 'aktio-connector' ),
+			self::select(
+				'aktio-merchant-rp-fees',
+				'merchant[return_policy][fees]',
+				(string) $rp['fees'],
+				array(
+					'customer' => __( 'Paid by the customer', 'aktio-connector' ),
+					'free'     => __( 'Free returns', 'aktio-connector' ),
+				)
+			)
+		);
+		self::merchant_row( 'aktio-merchant-rp-country', __( 'Country', 'aktio-connector' ), self::country( 'aktio-merchant-rp-country', 'merchant[return_policy][country]', (string) $rp['country'] ), __( 'Two-letter ISO country code, for example PL. Empty means no policy is emitted.', 'aktio-connector' ) );
+		self::merchant_row(
+			'aktio-merchant-rp-method',
+			__( 'Return method', 'aktio-connector' ),
+			self::select(
+				'aktio-merchant-rp-method',
+				'merchant[return_policy][method]',
+				(string) $rp['method'],
+				array(
+					'mail'          => __( 'By mail', 'aktio-connector' ),
+					'store'         => __( 'In store', 'aktio-connector' ),
+					'mail_or_store' => __( 'By mail or in store', 'aktio-connector' ),
+				)
+			)
+		);
+		echo '</tbody></table>';
+
+		echo '<h3>' . esc_html__( 'Fallback shipping', 'aktio-connector' ) . '</h3>';
+		echo '<table class="form-table" role="presentation"><tbody>';
+		self::merchant_row( 'aktio-merchant-sh-enabled', __( 'Declare fallback shipping', 'aktio-connector' ), self::checkbox( 'aktio-merchant-sh-enabled', 'merchant[shipping][enabled]', (bool) $sh['enabled'], __( 'Add shipping details when WooCommerce zones do not provide them', 'aktio-connector' ) ) );
+		self::merchant_row( 'aktio-merchant-sh-country', __( 'Destination country', 'aktio-connector' ), self::country( 'aktio-merchant-sh-country', 'merchant[shipping][country]', (string) $sh['country'] ) );
+		self::merchant_row(
+			'aktio-merchant-sh-cost',
+			/* translators: %s: shop currency code, e.g. PLN */
+			sprintf( __( 'Shipping cost (%s)', 'aktio-connector' ), get_woocommerce_currency() ),
+			'<input type="text" id="aktio-merchant-sh-cost" name="merchant[shipping][cost]" value="' . esc_attr( (string) $sh['cost'] ) . '" maxlength="10" inputmode="decimal" class="small-text" />',
+			__( 'Amount in the shop currency, up to 2 decimal places, for example 12.50. 0.00 means free shipping.', 'aktio-connector' )
+		);
+		self::merchant_row( 'aktio-merchant-sh-handling-0', __( 'Handling time (days)', 'aktio-connector' ), self::range( 'aktio-merchant-sh-handling', 'merchant[shipping][handling_days]', $sh['handling_days'], 30 ), __( 'From – to, 0 to 30 days.', 'aktio-connector' ) );
+		self::merchant_row( 'aktio-merchant-sh-transit-0', __( 'Delivery time (days)', 'aktio-connector' ), self::range( 'aktio-merchant-sh-transit', 'merchant[shipping][transit_days]', $sh['transit_days'], 60 ), __( 'From – to, 0 to 60 days.', 'aktio-connector' ) );
+		echo '</tbody></table>';
+	}
+
+	/** Wiersz tabeli; $control to gotowy, już escapowany HTML pola. */
+	private static function merchant_row( string $id, string $label, string $control, string $description = '' ): void {
+		echo '<tr><th scope="row"><label for="' . esc_attr( $id ) . '">' . esc_html( $label ) . '</label></th><td>';
+		echo $control; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- HTML zbudowany z esc_attr()/esc_html() w pomocnikach pól.
+		if ( '' !== $description ) {
+			echo '<p class="description">' . esc_html( $description ) . '</p>';
+		}
+		echo '</td></tr>';
+	}
+
+	/** Checkbox z ukrytym zerem, żeby odznaczenie dotarło do serwera. */
+	private static function checkbox( string $id, string $name, bool $checked, string $text ): string {
+		return '<input type="hidden" name="' . esc_attr( $name ) . '" value="0" />'
+			. '<label><input type="checkbox" id="' . esc_attr( $id ) . '" name="' . esc_attr( $name ) . '" value="1"' . checked( $checked, true, false ) . ' /> ' . esc_html( $text ) . '</label>';
+	}
+
+	private static function number( string $id, string $name, int $value, int $min, int $max ): string {
+		return '<input type="number" id="' . esc_attr( $id ) . '" name="' . esc_attr( $name ) . '" value="' . esc_attr( (string) $value ) . '" min="' . esc_attr( (string) $min ) . '" max="' . esc_attr( (string) $max ) . '" step="1" class="small-text" />';
+	}
+
+	private static function country( string $id, string $name, string $value ): string {
+		return '<input type="text" id="' . esc_attr( $id ) . '" name="' . esc_attr( $name ) . '" value="' . esc_attr( $value ) . '" maxlength="2" placeholder="PL" class="small-text" />';
+	}
+
+	private static function select( string $id, string $name, string $value, array $options ): string {
+		$html = '<select id="' . esc_attr( $id ) . '" name="' . esc_attr( $name ) . '">';
+		foreach ( $options as $key => $label ) {
+			$html .= '<option value="' . esc_attr( (string) $key ) . '"' . selected( $value, (string) $key, false ) . '>' . esc_html( $label ) . '</option>';
+		}
+		return $html . '</select>';
+	}
+
+	/** Dwa pola liczbowe „od – do”; id pierwszego to $id . '-0'. */
+	private static function range( string $id, string $name, array $pair, int $max ): string {
+		return self::number( $id . '-0', $name . '[0]', (int) $pair[0], 0, $max ) . ' – ' . self::number( $id . '-1', $name . '[1]', (int) $pair[1], 0, $max );
 	}
 
 	private static function text_row( string $key, string $label, string $value, string $type = 'text' ): void {

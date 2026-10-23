@@ -131,7 +131,8 @@ class Rest {
 	}
 
 	/**
-	 * POST visibility: body musi być obiektem JSON z opcjonalnymi company/bots.
+	 * POST visibility: body musi być obiektem JSON z opcjonalnymi company/bots/merchant.
+	 * Pola merchant są walidowane przed zapisem (całość atomowo): błąd → 400 z nazwą pola.
 	 */
 	public static function visibility_update( \WP_REST_Request $request ) {
 		$body = $request->get_json_params();
@@ -140,13 +141,26 @@ class Rest {
 		if ( ! $is_object ) {
 			return self::invalid_params( __( 'The request body must be a JSON object.', 'aktio-connector' ) );
 		}
-		foreach ( array( 'company', 'bots' ) as $key ) {
+		foreach ( array( 'company', 'bots', 'merchant' ) as $key ) {
 			if ( array_key_exists( $key, $body ) && ! is_array( $body[ $key ] ) ) {
 				/* translators: %s: field name */
 				return self::invalid_params( sprintf( __( 'The %s field must be an object.', 'aktio-connector' ), $key ) );
 			}
 		}
-		Settings::update( array_intersect_key( $body, array_flip( array( 'company', 'bots' ) ) ) );
+		$partial = array_intersect_key( $body, array_flip( array( 'company', 'bots', 'merchant' ) ) );
+		$errors  = Settings::merchant_errors( $partial );
+		if ( $errors ) {
+			$error = self::invalid_params( reset( $errors ) );
+			$error->add_data(
+				array(
+					'status' => 400,
+					'field'  => (string) key( $errors ),
+					'errors' => $errors,
+				)
+			);
+			return $error;
+		}
+		Settings::update( $partial );
 		return self::visibility();
 	}
 

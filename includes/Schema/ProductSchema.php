@@ -25,6 +25,12 @@ class ProductSchema {
 	/** Dostawa wyliczona ze strefy raz na węzeł (null = jeszcze nie liczona). */
 	private static $zone_shipping = null;
 
+	/** Dostawa zastępcza z ustawień sprzedawcy, liczona raz na węzeł (null = jeszcze nie liczona). */
+	private static $fallback_shipping = null;
+
+	/** Pola sprzedawcy wczytane raz na węzeł (null = jeszcze nie wczytane). */
+	private static $merchant = null;
+
 	/** Licznik odczytów stref wysyłki (szew dla testów). */
 	public static $zone_lookups = 0;
 
@@ -76,9 +82,11 @@ class ProductSchema {
 	 * Węzeł Product (albo ProductGroup dla produktu zmiennego).
 	 */
 	public static function node( \WC_Product $p ): array {
-		self::$zone_shipping = null;
-		$url                 = (string) get_permalink( $p->get_id() );
-		$variable = $p->is_type( 'variable' );
+		self::$zone_shipping     = null;
+		self::$fallback_shipping = null;
+		self::$merchant          = null;
+		$url                     = (string) get_permalink( $p->get_id() );
+		$variable                = $p->is_type( 'variable' );
 
 		$node = array(
 			'@type' => $variable ? 'ProductGroup' : 'Product',
@@ -150,15 +158,31 @@ class ProductSchema {
 		return array_values( array_unique( $out ) );
 	}
 
+	/**
+	 * Pola sprzedawcy z ustawień (raz na węzeł produktu).
+	 */
+	private static function merchant(): array {
+		if ( null === self::$merchant ) {
+			self::$merchant = Settings::get()['merchant'];
+		}
+		return self::$merchant;
+	}
+
+	/**
+	 * Własna marka produktu (taksonomia product_brand) ma pierwszeństwo;
+	 * bez niej obowiązuje marka domyślna z ustawień sprzedawcy (jeśli niepusta).
+	 */
 	private static function brand( \WC_Product $p ): string {
-		if ( ! taxonomy_exists( 'product_brand' ) ) {
-			return '';
+		if ( taxonomy_exists( 'product_brand' ) ) {
+			$terms = wp_get_post_terms( $p->get_id(), 'product_brand', array( 'fields' => 'names' ) );
+			if ( ! is_wp_error( $terms ) && ! empty( $terms ) ) {
+				$own = Graph::plain( (string) reset( $terms ), 100 );
+				if ( '' !== $own ) {
+					return $own;
+				}
+			}
 		}
-		$terms = wp_get_post_terms( $p->get_id(), 'product_brand', array( 'fields' => 'names' ) );
-		if ( is_wp_error( $terms ) || empty( $terms ) ) {
-			return '';
-		}
-		return Graph::plain( (string) reset( $terms ), 100 );
+		return Graph::plain( (string) self::merchant()['default_brand'], 100 );
 	}
 
 	/**
@@ -232,7 +256,43 @@ class ProductSchema {
 		if ( $shipping ) {
 			$offer['shippingDetails'] = $shipping;
 		}
+		$returns = self::return_policy();
+		if ( $returns ) {
+			$offer['hasMerchantReturnPolicy'] = $returns;
+		}
 		return $offer;
+	}
+
+	/**
+	 * Polityka zwrotów deklarowana przez właściciela (MerchantReturnPolicy) albo [] gdy
+	 * wyłączona / bez kraju. Dotyczy też produktów wirtualnych i do pobrania.
+	 */
+	private static function return_policy(): array {
+		$rp = self::merchant()['return_policy'];
+		if ( true !== $rp['enabled'] || '' === (string) $rp['country'] ) {
+			return array();
+		}
+		$days   = (int) $rp['days'];
+		$policy = array(
+			'@type'             => 'MerchantReturnPolicy',
+			'applicableCountry' => (string) $rp['country'],
+		);
+		if ( $days <= 0 ) {
+			$policy['returnPolicyCategory'] = 'https://schema.org/MerchantReturnNotPermitted';
+			return $policy;
+		}
+		$methods = array(
+			'mail'          => array( 'https://schema.org/ReturnByMail' ),
+			'store'         => array( 'https://schema.org/ReturnInStore' ),
+			'mail_or_store' => array( 'https://schema.org/ReturnByMail', 'https://schema.org/ReturnInStore' ),
+		);
+		$method  = $methods[ $rp['method'] ] ?? $methods['mail'];
+
+		$policy['returnPolicyCategory'] = 'https://schema.org/MerchantReturnFiniteReturnWindow';
+		$policy['merchantReturnDays']   = $days;
+		$policy['returnFees']           = 'free' === $rp['fees'] ? 'https://schema.org/FreeReturn' : 'https://schema.org/ReturnFeesCustomerResponsibility';
+		$policy['returnMethod']         = 1 === count( $method ) ? $method[0] : $method;
+		return $policy;
 	}
 
 	/**
@@ -266,13 +326,61 @@ class ProductSchema {
 	 * o liczbowym koszcie i lokalizacjami będącymi krajami. W pozostałych przypadkach brak.
 	 */
 	private static function shipping_details( \WC_Product $p ): array {
-		if ( $p->is_virtual() || ! class_exists( '\WC_Shipping_Zones' ) ) {
+		if ( $p->is_virtual() ) {
 			return array();
 		}
-		if ( null === self::$zone_shipping ) {
-			self::$zone_shipping = self::zone_shipping();
+		if ( class_exists( '\WC_Shipping_Zones' ) ) {
+			if ( null === self::$zone_shipping ) {
+				self::$zone_shipping = self::zone_shipping();
+			}
+			if ( self::$zone_shipping ) {
+				return self::$zone_shipping; // Automatyczne wykrycie ze stref ma pierwszeństwo.
+			}
 		}
-		return self::$zone_shipping;
+		// Dostawa zastępcza z ustawień — tylko dla towarów fizycznych (nie do pobrania).
+		if ( $p->is_downloadable() ) {
+			return array();
+		}
+		if ( null === self::$fallback_shipping ) {
+			self::$fallback_shipping = self::fallback_shipping();
+		}
+		return self::$fallback_shipping;
+	}
+
+	/**
+	 * Dostawa zastępcza deklarowana przez właściciela (gdy WooCommerce nic nie wykrył).
+	 * Waluta = waluta sklepu; koszt w postaci tekstu, jak zapisany w ustawieniach.
+	 */
+	private static function fallback_shipping(): array {
+		$sh = self::merchant()['shipping'];
+		if ( true !== $sh['enabled'] || '' === (string) $sh['country'] ) {
+			return array();
+		}
+		$days = static function ( array $pair ): array {
+			return array(
+				'@type'    => 'QuantitativeValue',
+				'minValue' => (int) $pair[0],
+				'maxValue' => (int) $pair[1],
+				'unitCode' => 'DAY',
+			);
+		};
+		return array(
+			'@type'               => 'OfferShippingDetails',
+			'shippingRate'        => array(
+				'@type'    => 'MonetaryAmount',
+				'value'    => (string) $sh['cost'],
+				'currency' => get_woocommerce_currency(),
+			),
+			'shippingDestination' => array(
+				'@type'          => 'DefinedRegion',
+				'addressCountry' => (string) $sh['country'],
+			),
+			'deliveryTime'        => array(
+				'@type'        => 'ShippingDeliveryTime',
+				'handlingTime' => $days( $sh['handling_days'] ),
+				'transitTime'  => $days( $sh['transit_days'] ),
+			),
+		);
 	}
 
 	/**

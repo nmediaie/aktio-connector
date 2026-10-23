@@ -210,4 +210,120 @@ class SettingsPageTest extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'name="_wpnonce"', $html );
 		$this->assertStringContainsString( admin_url( 'admin-post.php' ), $html );
 	}
+
+	// --- Pola sprzedawcy (merchant), wersja 0.1.2 ---
+
+	private function merchant_post(): array {
+		return array(
+			'default_brand' => 'Plantacja',
+			'return_policy' => array( 'enabled' => '1', 'days' => '30', 'fees' => 'free', 'country' => 'pl', 'method' => 'mail_or_store' ),
+			'shipping'      => array(
+				'enabled'       => '1',
+				'country'       => 'PL',
+				'cost'          => '12,50',
+				'handling_days' => array( '1', '2' ),
+				'transit_days'  => array( '2', '5' ),
+			),
+		);
+	}
+
+	private function submit(): void {
+		try {
+			SettingsPage::handle_save();
+			$this->fail( 'Po zapisie oczekiwane przekierowanie.' );
+		} catch ( RuntimeException $e ) {
+			$this->assertSame( 'redirect', $e->getMessage() );
+		}
+	}
+
+	public function test_page_renders_merchant_section_with_description_and_fields() {
+		$html = $this->html();
+		$this->assertStringContainsString( '<h2>Merchant</h2>', $html );
+		$this->assertStringContainsString( 'Used when they cannot be read from WooCommerce. You declare this data to Google', $html );
+		foreach ( array( 'merchant[default_brand]', 'merchant[return_policy][enabled]', 'merchant[return_policy][days]', 'merchant[return_policy][fees]', 'merchant[return_policy][country]', 'merchant[return_policy][method]', 'merchant[shipping][enabled]', 'merchant[shipping][country]', 'merchant[shipping][cost]', 'merchant[shipping][handling_days][0]', 'merchant[shipping][handling_days][1]', 'merchant[shipping][transit_days][0]', 'merchant[shipping][transit_days][1]' ) as $name ) {
+			$this->assertStringContainsString( 'name="' . $name . '"', $html, $name );
+		}
+		$this->assertStringContainsString( 'placeholder="' . esc_attr( get_bloginfo( 'name' ) ) . '"', $html );
+	}
+
+	public function test_save_updates_merchant_fields() {
+		$this->post( array( 'merchant' => $this->merchant_post() ) );
+		$this->submit();
+		$m = Settings::get()['merchant'];
+		$this->assertSame( 'Plantacja', $m['default_brand'] );
+		$this->assertSame( array( 'enabled' => true, 'days' => 30, 'fees' => 'free', 'country' => 'PL', 'method' => 'mail_or_store' ), $m['return_policy'] );
+		$this->assertSame(
+			array( 'enabled' => true, 'country' => 'PL', 'cost' => '12.50', 'handling_days' => array( 1, 2 ), 'transit_days' => array( 2, 5 ) ),
+			$m['shipping']
+		);
+	}
+
+	public function test_unchecked_checkboxes_disable_flags() {
+		Settings::update( array( 'merchant' => array( 'return_policy' => array( 'enabled' => true ), 'shipping' => array( 'enabled' => true ) ) ) );
+		$post                                    = $this->merchant_post();
+		$post['return_policy']['enabled']        = '0';
+		$post['shipping']['enabled']             = '0';
+		$this->post( array( 'merchant' => $post ) );
+		$this->submit();
+		$m = Settings::get()['merchant'];
+		$this->assertFalse( $m['return_policy']['enabled'] );
+		$this->assertFalse( $m['shipping']['enabled'] );
+	}
+
+	public function test_post_without_merchant_keeps_merchant() {
+		Settings::update( array( 'merchant' => array( 'default_brand' => 'Zostaje' ) ) );
+		$this->post( array( 'company' => array( 'name' => 'X' ) ) );
+		$this->submit();
+		$this->assertSame( 'Zostaje', Settings::get()['merchant']['default_brand'] );
+	}
+
+	public function test_invalid_merchant_is_not_saved_and_error_is_shown() {
+		Settings::update( array( 'merchant' => array( 'default_brand' => 'Stara' ) ) );
+		$before = Settings::get();
+		$bad    = $this->merchant_post();
+		$bad['shipping']['cost']          = 'abc';
+		$bad['return_policy']['days']     = '999';
+		$bad['shipping']['transit_days']  = array( '5', '2' );
+		$this->post( array( 'company' => array( 'name' => 'Nie zapisuj' ), 'merchant' => $bad ) );
+		$this->submit();
+		$this->assertSame( $before, Settings::get() );
+
+		$_GET['invalid'] = '1';
+		$html            = $this->html();
+		unset( $_GET['invalid'] );
+		$this->assertStringContainsString( 'notice-error', $html );
+		$this->assertStringContainsString( 'merchant.shipping.cost', $html );
+		$this->assertStringContainsString( 'merchant.return_policy.days', $html );
+		$this->assertStringContainsString( 'merchant.shipping.transit_days', $html );
+		$this->assertStringNotContainsString( 'Settings saved.', $html );
+	}
+
+	public function test_merchant_values_are_escaped_on_page() {
+		update_option( Settings::OPTION, array( 'merchant' => array( 'default_brand' => '"><script>alert(1)</script>' ) ) );
+		$html = $this->html();
+		$this->assertStringNotContainsString( '<script>alert', $html );
+	}
+
+	public function test_merchant_save_requires_nonce() {
+		$before = Settings::get();
+		$this->post( array( 'merchant' => $this->merchant_post() ), false );
+		try {
+			SettingsPage::handle_save();
+			$this->fail( 'Zły nonce powinien przerwać żądanie.' );
+		} catch ( WPDieException $e ) {
+			$this->assertTrue( true );
+		}
+		$this->assertSame( $before, Settings::get() );
+	}
+
+	public function test_polish_translation_of_merchant_section() {
+		$this->assertTrue( load_textdomain( 'aktio-connector', dirname( __DIR__ ) . '/languages/aktio-connector-pl_PL.mo' ) );
+		try {
+			$html = $this->html();
+		} finally {
+			unload_textdomain( 'aktio-connector' );
+		}
+		$this->assertStringContainsString( 'Dane sprzedawcy (Google)', $html );
+		$this->assertStringContainsString( 'Używane, gdy nie da się ich odczytać z WooCommerce. Deklarujesz te dane wobec Google — wpisz zgodne z regulaminem sklepu.', $html );
+	}
 }

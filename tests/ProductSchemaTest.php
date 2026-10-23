@@ -360,6 +360,218 @@ class ProductSchemaTest extends WP_UnitTestCase {
 		$this->assertSame( 1, $this->count_breadcrumb_lists_on_page( $this->simple() ) );
 	}
 
+	// --- Pola sprzedawcy (merchant), wersja 0.1.2 ---
+
+	private function merchant( array $merchant ): void {
+		Settings::update( array( 'merchant' => $merchant ) );
+	}
+
+	private function brand_term( \WC_Product $p, string $name ): void {
+		if ( ! taxonomy_exists( 'product_brand' ) ) {
+			register_taxonomy( 'product_brand', 'product' );
+		}
+		wp_set_object_terms( $p->get_id(), array( $name ), 'product_brand' );
+	}
+
+	public function test_default_brand_used_when_product_has_no_own_brand() {
+		$this->merchant( array( 'default_brand' => 'Plantacja' ) );
+		$node = $this->product_node( $this->simple() );
+		$this->assertSame( array( '@type' => 'Brand', 'name' => 'Plantacja' ), $node['brand'] );
+	}
+
+	public function test_own_product_brand_wins_over_default_brand() {
+		$this->merchant( array( 'default_brand' => 'Plantacja' ) );
+		$p = $this->simple();
+		$this->brand_term( $p, 'Cudza Marka' );
+		$node = $this->product_node( $p );
+		$this->assertSame( 'Cudza Marka', $node['brand']['name'] );
+	}
+
+	public function test_no_brand_when_default_brand_empty_and_no_own_brand() {
+		$this->assertArrayNotHasKey( 'brand', $this->product_node( $this->simple() ) );
+	}
+
+	public function test_default_brand_applies_to_variable_product_group() {
+		$this->merchant( array( 'default_brand' => 'Plantacja' ) );
+		$node = $this->product_node( $this->variable( array( 'S' => '10', 'M' => '12' ) ) );
+		$this->assertSame( 'ProductGroup', $node['@type'] );
+		$this->assertSame( 'Plantacja', $node['brand']['name'] );
+	}
+
+	private function return_policy( array $over = array() ): array {
+		return array_merge( array( 'enabled' => true, 'days' => 14, 'fees' => 'customer', 'country' => 'PL', 'method' => 'mail' ), $over );
+	}
+
+	public function test_return_policy_absent_by_default() {
+		$this->assertArrayNotHasKey( 'hasMerchantReturnPolicy', $this->product_node( $this->simple() )['offers'] );
+	}
+
+	public function test_return_policy_finite_window_on_simple_offer() {
+		$this->merchant( array( 'return_policy' => $this->return_policy() ) );
+		$policy = $this->product_node( $this->simple() )['offers']['hasMerchantReturnPolicy'];
+		$this->assertSame(
+			array(
+				'@type'                => 'MerchantReturnPolicy',
+				'applicableCountry'    => 'PL',
+				'returnPolicyCategory' => 'https://schema.org/MerchantReturnFiniteReturnWindow',
+				'merchantReturnDays'   => 14,
+				'returnFees'           => 'https://schema.org/ReturnFeesCustomerResponsibility',
+				'returnMethod'         => 'https://schema.org/ReturnByMail',
+			),
+			$policy
+		);
+	}
+
+	public function test_return_policy_free_returns_and_methods() {
+		$cases = array(
+			'mail'          => 'https://schema.org/ReturnByMail',
+			'store'         => 'https://schema.org/ReturnInStore',
+			'mail_or_store' => array( 'https://schema.org/ReturnByMail', 'https://schema.org/ReturnInStore' ),
+		);
+		foreach ( $cases as $method => $expected ) {
+			$this->merchant( array( 'return_policy' => $this->return_policy( array( 'fees' => 'free', 'method' => $method, 'days' => 30 ) ) ) );
+			$policy = $this->product_node( $this->simple() )['offers']['hasMerchantReturnPolicy'];
+			$this->assertSame( 'https://schema.org/FreeReturn', $policy['returnFees'] );
+			$this->assertSame( 30, $policy['merchantReturnDays'] );
+			$this->assertSame( $expected, $policy['returnMethod'], $method );
+		}
+	}
+
+	public function test_return_policy_zero_days_means_not_permitted_without_details() {
+		$this->merchant( array( 'return_policy' => $this->return_policy( array( 'days' => 0, 'fees' => 'free', 'method' => 'store' ) ) ) );
+		$policy = $this->product_node( $this->simple() )['offers']['hasMerchantReturnPolicy'];
+		$this->assertSame(
+			array(
+				'@type'                => 'MerchantReturnPolicy',
+				'applicableCountry'    => 'PL',
+				'returnPolicyCategory' => 'https://schema.org/MerchantReturnNotPermitted',
+			),
+			$policy
+		);
+	}
+
+	public function test_return_policy_on_every_variant_offer() {
+		$this->merchant( array( 'return_policy' => $this->return_policy( array( 'days' => 21 ) ) ) );
+		$node = $this->product_node( $this->variable( array( 'S' => '10', 'M' => '12', 'L' => '14' ) ) );
+		$this->assertCount( 3, $node['hasVariant'] );
+		foreach ( $node['hasVariant'] as $variant ) {
+			$this->assertSame( 21, $variant['offers']['hasMerchantReturnPolicy']['merchantReturnDays'] );
+			$this->assertSame( 'PL', $variant['offers']['hasMerchantReturnPolicy']['applicableCountry'] );
+		}
+	}
+
+	public function test_return_policy_absent_when_disabled_or_country_empty() {
+		$this->merchant( array( 'return_policy' => $this->return_policy( array( 'enabled' => false ) ) ) );
+		$this->assertArrayNotHasKey( 'hasMerchantReturnPolicy', $this->product_node( $this->simple() )['offers'] );
+		$this->merchant( array( 'return_policy' => $this->return_policy( array( 'enabled' => true, 'country' => '' ) ) ) );
+		$this->assertArrayNotHasKey( 'hasMerchantReturnPolicy', $this->product_node( $this->simple() )['offers'] );
+	}
+
+	public function test_return_policy_also_for_virtual_and_downloadable_products() {
+		$this->merchant( array( 'return_policy' => $this->return_policy() ) );
+		$p = $this->simple();
+		$p->set_virtual( true );
+		$p->set_downloadable( true );
+		$p->save();
+		$this->assertArrayHasKey( 'hasMerchantReturnPolicy', $this->product_node( $p )['offers'] );
+	}
+
+	private function shipping_fallback( array $over = array() ): array {
+		return array_merge(
+			array( 'enabled' => true, 'country' => 'PL', 'cost' => '12.50', 'handling_days' => array( 0, 2 ), 'transit_days' => array( 2, 4 ) ),
+			$over
+		);
+	}
+
+	public function test_shipping_fallback_emitted_when_no_zone_detected() {
+		$this->merchant( array( 'shipping' => $this->shipping_fallback() ) );
+		$sd = $this->product_node( $this->simple() )['offers']['shippingDetails'];
+		$this->assertSame(
+			array(
+				'@type'               => 'OfferShippingDetails',
+				'shippingRate'        => array(
+					'@type'    => 'MonetaryAmount',
+					'value'    => '12.50',
+					'currency' => get_woocommerce_currency(),
+				),
+				'shippingDestination' => array(
+					'@type'          => 'DefinedRegion',
+					'addressCountry' => 'PL',
+				),
+				'deliveryTime'        => array(
+					'@type'        => 'ShippingDeliveryTime',
+					'handlingTime' => array( '@type' => 'QuantitativeValue', 'minValue' => 0, 'maxValue' => 2, 'unitCode' => 'DAY' ),
+					'transitTime'  => array( '@type' => 'QuantitativeValue', 'minValue' => 2, 'maxValue' => 4, 'unitCode' => 'DAY' ),
+				),
+			),
+			$sd
+		);
+	}
+
+	public function test_shipping_fallback_on_every_variant_with_single_zone_lookup() {
+		$this->merchant( array( 'shipping' => $this->shipping_fallback() ) );
+		$p      = $this->variable( array( 'S' => '10', 'M' => '12', 'L' => '14' ) );
+		$before = ProductSchema::$zone_lookups;
+		$node   = $this->product_node( $p );
+		$this->assertCount( 3, $node['hasVariant'] );
+		foreach ( $node['hasVariant'] as $variant ) {
+			$this->assertSame( '12.50', $variant['offers']['shippingDetails']['shippingRate']['value'] );
+		}
+		$this->assertSame( 1, ProductSchema::$zone_lookups - $before );
+	}
+
+	public function test_detected_zone_shipping_wins_over_fallback() {
+		$zone = new \WC_Shipping_Zone();
+		$zone->set_zone_name( 'Polska' );
+		$zone->add_location( 'PL', 'country' );
+		$zone->save();
+		$iid = $zone->add_shipping_method( 'flat_rate' );
+		update_option( 'woocommerce_flat_rate_' . $iid . '_settings', array( 'cost' => '12', 'tax_status' => 'taxable' ) );
+		$this->merchant( array( 'shipping' => $this->shipping_fallback( array( 'cost' => '99.00', 'country' => 'DE' ) ) ) );
+		$sd = $this->product_node( $this->simple() )['offers']['shippingDetails'];
+		$this->assertSame( '12.00', $sd['shippingRate']['value'] );
+		$this->assertArrayNotHasKey( 'deliveryTime', $sd );
+	}
+
+	public function test_shipping_fallback_absent_for_virtual_and_downloadable() {
+		$this->merchant( array( 'shipping' => $this->shipping_fallback() ) );
+		$virtual = $this->simple();
+		$virtual->set_virtual( true );
+		$virtual->save();
+		$this->assertArrayNotHasKey( 'shippingDetails', $this->product_node( $virtual )['offers'] );
+
+		$download = $this->simple();
+		$download->set_downloadable( true );
+		$download->save();
+		$this->assertArrayNotHasKey( 'shippingDetails', $this->product_node( $download )['offers'] );
+	}
+
+	public function test_shipping_fallback_absent_when_disabled_or_country_empty() {
+		$this->merchant( array( 'shipping' => $this->shipping_fallback( array( 'enabled' => false ) ) ) );
+		$this->assertArrayNotHasKey( 'shippingDetails', $this->product_node( $this->simple() )['offers'] );
+		$this->merchant( array( 'shipping' => $this->shipping_fallback( array( 'enabled' => true, 'country' => '' ) ) ) );
+		$this->assertArrayNotHasKey( 'shippingDetails', $this->product_node( $this->simple() )['offers'] );
+	}
+
+	public function test_nothing_merchant_related_when_seo_plugin_owns_product_schema() {
+		$this->plugin( 'seo-by-rank-math/rank-math.php', 'Rank Math SEO' );
+		update_option( 'rank_math_modules', array( 'woocommerce' ) );
+		$this->merchant(
+			array(
+				'default_brand' => 'Plantacja',
+				'return_policy' => $this->return_policy(),
+				'shipping'      => $this->shipping_fallback(),
+			)
+		);
+		$p = $this->simple();
+		$this->go_to( get_permalink( $p->get_id() ) );
+		$json = Graph::render();
+		$this->assertStringNotContainsString( 'hasMerchantReturnPolicy', $json );
+		$this->assertStringNotContainsString( 'OfferShippingDetails', $json );
+		$this->assertStringNotContainsString( 'Plantacja', $json );
+		$this->assertNull( $this->product_node( $p ) );
+	}
+
 	/** Węzły BreadcrumbList ze wszystkich bloków JSON-LD po wyrenderowaniu okruszków WC, wp_head i wp_footer. */
 	private function count_breadcrumb_lists_on_page( \WC_Product $p ): int {
 		$this->go_to( get_permalink( $p->get_id() ) );
