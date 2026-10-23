@@ -13,6 +13,7 @@ delete_option( 'aktio_connector_settings' );
 delete_option( 'aktio_connector_update_log' );
 delete_option( 'aktio_connector_core_auto' );
 delete_transient( 'aktio_connector_llms' );
+delete_transient( 'aktio_connector_lang' );
 delete_option( 'aktio_connector_indexnow_queue' );
 delete_option( 'aktio_connector_indexnow_log' );
 delete_option( 'aktio_connector_indexnow_last' );

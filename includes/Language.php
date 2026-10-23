@@ -24,12 +24,15 @@ class Language {
 
 	const GTRANSLATE = 'gtranslate/gtranslate.php';
 
+	const TRANSIENT     = 'aktio_connector_lang';
+	const TRANSIENT_TTL = 15 * MINUTE_IN_SECONDS;
+
 	/**
 	 * Słowa funkcyjne do heurystyki wykrywania języka treści.
 	 */
 	const WORDS = array(
-		'pl' => array( 'jest', 'nie', 'się', 'jak', 'dla', 'oraz', 'przez', 'który', 'która', 'które', 'tylko', 'jako', 'było', 'nasza', 'nasze', 'czy', 'ale', 'też', 'możesz', 'można', 'bardzo', 'wszystko', 'nas', 'was' ),
-		'en' => array( 'the', 'and', 'is', 'are', 'was', 'for', 'with', 'that', 'this', 'you', 'your', 'our', 'have', 'from', 'not', 'will', 'can', 'all', 'of', 'to', 'it' ),
+		'pl' => array( 'jest', 'nie', 'się', 'jak', 'dla', 'oraz', 'przez', 'który', 'która', 'które', 'tylko', 'jako', 'było', 'nasza', 'nasze', 'czy', 'ale', 'też', 'możesz', 'można', 'bardzo', 'wszystko', 'nas' ),
+		'en' => array( 'the', 'and', 'is', 'are', 'was', 'for', 'with', 'that', 'this', 'you', 'your', 'our', 'have', 'from', 'not', 'will', 'can', 'all', 'of', 'it' ),
 		'de' => array( 'der', 'die', 'das', 'und', 'ist', 'nicht', 'ein', 'eine', 'mit', 'für', 'auf', 'von', 'zu', 'den', 'dem', 'sie', 'wir', 'auch', 'sich', 'bei' ),
 		'fr' => array( 'le', 'la', 'les', 'des', 'est', 'une', 'pour', 'dans', 'qui', 'que', 'pas', 'sur', 'avec', 'vous', 'nous', 'sont', 'ce', 'du', 'au', 'et' ),
 		'es' => array( 'el', 'los', 'las', 'una', 'por', 'con', 'para', 'del', 'que', 'es', 'se', 'su', 'más', 'pero', 'como', 'nuestro', 'está', 'sus', 'y', 'un' ),
@@ -37,6 +40,8 @@ class Language {
 
 	public static function register(): void {
 		add_filter( 'language_attributes', array( __CLASS__, 'language_attributes' ) );
+		add_action( 'save_post', array( __CLASS__, 'clear_cache' ) );
+		add_action( 'deleted_post', array( __CLASS__, 'clear_cache' ) );
 	}
 
 	/**
@@ -89,18 +94,42 @@ class Language {
 		return ! in_array( $mode, array( 'sub_domain', 'sub_directory' ), true );
 	}
 
+	public static function clear_cache(): void {
+		delete_transient( self::TRANSIENT );
+	}
+
 	/**
 	 * Niezgodność języka treści z ustawionym: {expected, detected} albo null.
 	 * Heurystyka: słowa funkcyjne pl/en/de/fr/es w 5 ostatnich publicznych
-	 * wpisach i produktach; wykryty język musi mieć co najmniej 60% trafień.
+	 * wpisach, stronach i produktach; wykryty język musi mieć co najmniej 60% trafień.
+	 * Wykryty język jest cache'owany (15 min lub do zapisu wpisu), bo /status woła to przy każdym żądaniu.
 	 */
 	public static function warning(): ?array {
 		if ( null !== self::multilingual_plugin() ) {
 			return null;
 		}
+		$detected = self::detected_content_language();
+		if ( null === $detected ) {
+			return null;
+		}
+		$expected = self::current();
+		if ( strtolower( substr( $expected, 0, 2 ) ) === $detected ) {
+			return null;
+		}
+		return array(
+			'expected' => $expected,
+			'detected' => $detected,
+		);
+	}
+
+	private static function detected_content_language(): ?string {
+		$cached = get_transient( self::TRANSIENT );
+		if ( is_string( $cached ) ) {
+			return '' === $cached ? null : $cached;
+		}
 		$posts = get_posts(
 			array(
-				'post_type'      => array( 'post', 'product' ),
+				'post_type'      => array( 'post', 'page', 'product' ),
 				'post_status'    => 'publish',
 				'has_password'   => false,
 				'posts_per_page' => 5,
@@ -114,17 +143,8 @@ class Language {
 			$text .= ' ' . $post->post_title . ' ' . $post->post_content;
 		}
 		$detected = self::detect( $text );
-		if ( null === $detected ) {
-			return null;
-		}
-		$expected = self::current();
-		if ( strtolower( substr( $expected, 0, 2 ) ) === $detected ) {
-			return null;
-		}
-		return array(
-			'expected' => $expected,
-			'detected' => $detected,
-		);
+		set_transient( self::TRANSIENT, (string) $detected, self::TRANSIENT_TTL );
+		return $detected;
 	}
 
 	/**

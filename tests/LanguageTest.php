@@ -130,6 +130,41 @@ class LanguageTest extends WP_UnitTestCase {
 		);
 	}
 
+	public function test_warning_is_cached_and_cleared_on_post_save() {
+		$this->posts( $this->polish_text() );
+		Settings::update( array( 'content_language' => 'en' ) );
+		$queries = 0;
+		$count   = static function ( $request ) use ( &$queries ) {
+			$queries++;
+			return $request;
+		};
+		add_filter( 'posts_pre_query', $count );
+		Language::warning();
+		Language::warning();
+		Language::warning();
+		$this->assertSame( 1, $queries );
+		$this->assertIsString( get_transient( Language::TRANSIENT ) );
+
+		// Zapis wpisu unieważnia wynik.
+		self::factory()->post->create( array( 'post_title' => 'Nowy', 'post_content' => $this->polish_text() ) );
+		$this->assertFalse( get_transient( Language::TRANSIENT ) );
+		$before = $queries;
+		Language::warning();
+		$this->assertSame( $before + 1, $queries );
+		remove_filter( 'posts_pre_query', $count );
+	}
+
+	public function test_pages_are_included_in_the_sample() {
+		self::factory()->post->create( array( 'post_type' => 'page', 'post_title' => 'O nas', 'post_content' => $this->polish_text() . ' ' . $this->polish_text() ) );
+		Settings::update( array( 'content_language' => 'en' ) );
+		$this->assertSame( 'pl', Language::warning()['detected'] );
+	}
+
+	public function test_ambiguous_words_are_not_in_the_lists() {
+		$this->assertNotContains( 'to', Language::WORDS['en'] );
+		$this->assertNotContains( 'was', Language::WORDS['pl'] );
+	}
+
 	public function test_multilingual_plugin_keeps_lang_and_is_reported() {
 		$this->active = array( 'polylang/polylang.php' );
 		Settings::update( array( 'content_language' => 'en-IE' ) );
