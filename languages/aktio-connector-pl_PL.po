@@ -320,10 +320,6 @@ msgstr "Płaci klient"
 msgid "Free returns"
 msgstr "Bezpłatne zwroty"
 
-#: includes/Admin/SettingsPage.php:300
-msgid "Two-letter ISO country code, for example PL. Empty means no policy is emitted."
-msgstr "Dwuliterowy kod kraju ISO, na przykład PL. Puste pole oznacza, że polityka nie jest dodawana."
-
 #: includes/Admin/SettingsPage.php:303
 msgid "Return method"
 msgstr "Sposób zwrotu"
@@ -439,3 +435,8 @@ msgstr "Pola sprzedawcy działają ze sklepem WooCommerce."
 #, php-format
 msgid "%s is not a known field."
 msgstr "Pole %s nie jest znanym polem."
+
+#: includes/Admin/SettingsPage.php:300
+#: includes/Admin/SettingsPage.php:320
+msgid "Two-letter ISO country code, for example PL. Leave empty to use the store country. Turn the checkbox off to stop declaring this data."
+msgstr "Dwuliterowy kod kraju ISO, na przykład PL. Puste = kraj sklepu. Aby przestać deklarować te dane, odznacz pole wyboru."

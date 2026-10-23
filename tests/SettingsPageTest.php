@@ -398,4 +398,20 @@ class SettingsPageTest extends WP_UnitTestCase {
 		$this->submit();
 		$this->assertSame( 'DE', get_option( Settings::OPTION )['merchant']['return_policy']['country'] );
 	}
+
+	public function test_country_hints_say_empty_means_store_country() {
+		$html = $this->html();
+		$this->assertSame( 2, substr_count( $html, 'Leave empty to use the store country. Turn the checkbox off to stop declaring this data.' ) );
+		$this->assertStringNotContainsString( 'no policy is emitted', $html );
+	}
+
+	public function test_polish_country_hints() {
+		$this->assertTrue( load_textdomain( 'aktio-connector', dirname( __DIR__ ) . '/languages/aktio-connector-pl_PL.mo' ) );
+		try {
+			$html = $this->html();
+		} finally {
+			unload_textdomain( 'aktio-connector' );
+		}
+		$this->assertSame( 2, substr_count( $html, 'Puste = kraj sklepu. Aby przestać deklarować te dane, odznacz pole wyboru.' ) );
+	}
 }

@@ -297,7 +297,7 @@ class SettingsPage {
 				)
 			)
 		);
-		self::merchant_row( 'aktio-merchant-rp-country', __( 'Country', 'aktio-connector' ), self::country( 'aktio-merchant-rp-country', 'merchant[return_policy][country]', (string) $rp['country'] ), __( 'Two-letter ISO country code, for example PL. Empty means no policy is emitted.', 'aktio-connector' ) );
+		self::merchant_row( 'aktio-merchant-rp-country', __( 'Country', 'aktio-connector' ), self::country( 'aktio-merchant-rp-country', 'merchant[return_policy][country]', (string) $rp['country'] ), __( 'Two-letter ISO country code, for example PL. Leave empty to use the store country. Turn the checkbox off to stop declaring this data.', 'aktio-connector' ) );
 		self::merchant_row(
 			'aktio-merchant-rp-method',
 			__( 'Return method', 'aktio-connector' ),
@@ -317,7 +317,7 @@ class SettingsPage {
 		echo '<h3>' . esc_html__( 'Fallback shipping', 'aktio-connector' ) . '</h3>';
 		echo '<table class="form-table" role="presentation"><tbody>';
 		self::merchant_row( 'aktio-merchant-sh-enabled', __( 'Declare fallback shipping', 'aktio-connector' ), self::checkbox( 'aktio-merchant-sh-enabled', 'merchant[shipping][enabled]', (bool) $sh['enabled'], __( 'Add shipping details when WooCommerce zones do not provide them', 'aktio-connector' ) ) );
-		self::merchant_row( 'aktio-merchant-sh-country', __( 'Destination country', 'aktio-connector' ), self::country( 'aktio-merchant-sh-country', 'merchant[shipping][country]', (string) $sh['country'] ) );
+		self::merchant_row( 'aktio-merchant-sh-country', __( 'Destination country', 'aktio-connector' ), self::country( 'aktio-merchant-sh-country', 'merchant[shipping][country]', (string) $sh['country'] ), __( 'Two-letter ISO country code, for example PL. Leave empty to use the store country. Turn the checkbox off to stop declaring this data.', 'aktio-connector' ) );
 		self::merchant_row(
 			'aktio-merchant-sh-cost',
 			/* translators: %s: shop currency code, e.g. PLN */
