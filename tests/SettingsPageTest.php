@@ -414,4 +414,259 @@ class SettingsPageTest extends WP_UnitTestCase {
 		}
 		$this->assertSame( 2, substr_count( $html, 'Puste = kraj sklepu. Aby przestać deklarować te dane, odznacz pole wyboru.' ) );
 	}
+
+	// --- SEO, język, IndexNow, weryfikacja, cache, pomiar AI (wersja 0.2.0) ---
+
+	/** Przekierowanie zapisuje adres docelowy (filtr o priorytecie 1 przed filtrem rzucającym). */
+	private function submit_to_location( callable $handler ): string {
+		$location = '';
+		$capture  = static function ( $url ) use ( &$location ) {
+			$location = (string) $url;
+			return $url;
+		};
+		add_filter( 'wp_redirect', $capture, 1 );
+		try {
+			$handler();
+			$this->fail( 'Oczekiwane przekierowanie.' );
+		} catch ( RuntimeException $e ) {
+			$this->assertSame( 'redirect', $e->getMessage() );
+		} finally {
+			remove_filter( 'wp_redirect', $capture, 1 );
+		}
+		return $location;
+	}
+
+	private function action_post( string $nonce_action, string $field, bool $valid = true ): void {
+		$data     = array( $field => $valid ? wp_create_nonce( $nonce_action ) : 'zly' );
+		$_POST    = $data;
+		$_REQUEST = $data;
+	}
+
+	public function test_page_renders_new_sections_and_fields() {
+		$html = $this->html();
+		foreach ( array( 'SEO', 'Content language', 'Extended company data', 'IndexNow', 'Search engine verification', 'Cache', 'AI visibility' ) as $heading ) {
+			$this->assertStringContainsString( '<h2>' . $heading . '</h2>', $html, $heading );
+		}
+		foreach ( array( 'seo[home_description]', 'seo[default_og_image]', 'content_language', 'company[description]', 'company[founding_date]', 'company[area_served]', 'company[contact_point][telephone]', 'company[contact_point][email]', 'company[contact_point][languages]', 'indexnow[enabled]', 'verification[bing]', 'verification[google]' ) as $name ) {
+			$this->assertStringContainsString( 'name="' . $name . '"', $html, $name );
+		}
+		$this->assertStringContainsString( 'does not send page content or visitor data', $html );
+		$this->assertStringContainsString( 'lower bound', $html );
+		$this->assertStringContainsString( 'aktio-choose-image', $html );
+		$this->assertStringNotContainsString( 'indexnow[key]', $html );
+	}
+
+	public function test_save_updates_new_settings() {
+		$this->post(
+			array(
+				'seo'          => array( 'home_description' => 'Opis strony', 'default_og_image' => 'https://example.com/og.jpg' ),
+				'content_language' => 'en-IE',
+				'indexnow'     => array( 'enabled' => '1' ),
+				'verification' => array( 'bing' => str_repeat( 'AB12', 8 ), 'google' => 'abcdefghijklmnopqrstuvwx' ),
+				'company'      => array(
+					'description'   => 'Sklep z ziołami',
+					'founding_date' => '2015-04-01',
+					'area_served'   => 'Ireland',
+					'contact_point' => array( 'telephone' => '+353 1', 'email' => 'help@example.com', 'languages' => 'en, pl' ),
+				),
+			)
+		);
+		$this->submit();
+		$s = Settings::get();
+		$this->assertSame( 'Opis strony', $s['seo']['home_description'] );
+		$this->assertSame( 'https://example.com/og.jpg', $s['seo']['default_og_image'] );
+		$this->assertSame( 'en-IE', $s['content_language'] );
+		$this->assertTrue( $s['indexnow']['enabled'] );
+		$this->assertSame( str_repeat( 'AB12', 8 ), $s['verification']['bing'] );
+		$this->assertSame( 'abcdefghijklmnopqrstuvwx', $s['verification']['google'] );
+		$this->assertSame( 'Sklep z ziołami', $s['company']['description'] );
+		$this->assertSame( '2015-04-01', $s['company']['founding_date'] );
+		$this->assertSame( 'Ireland', $s['company']['area_served'] );
+		$this->assertSame( array( 'en', 'pl' ), $s['company']['contact_point']['languages'] );
+		$this->assertSame( 'help@example.com', $s['company']['contact_point']['email'] );
+	}
+
+	public function test_unchecked_indexnow_disables_module() {
+		Settings::update( array( 'indexnow' => array( 'enabled' => true ) ) );
+		$this->post( array( 'indexnow' => array( 'enabled' => '0' ) ) );
+		$this->submit();
+		$this->assertFalse( Settings::get()['indexnow']['enabled'] );
+	}
+
+	public function test_invalid_new_settings_block_whole_save_and_show_errors() {
+		$before = Settings::get();
+		$this->post(
+			array(
+				'company'      => array( 'name' => 'Nie zapisuj' ),
+				'verification' => array( 'bing' => 'zly kod' ),
+				'seo'          => array( 'default_og_image' => 'http://example.com/a.jpg' ),
+			)
+		);
+		$this->submit();
+		$this->assertSame( $before, Settings::get() );
+		$_GET['invalid'] = '1';
+		$html            = $this->html();
+		unset( $_GET['invalid'] );
+		$this->assertStringContainsString( 'verification.bing', $html );
+		$this->assertStringContainsString( 'seo.default_og_image', $html );
+	}
+
+	public function test_saving_screen_does_not_freeze_site_language() {
+		$this->post( array( 'content_language' => str_replace( '_', '-', get_locale() ) ) );
+		$this->submit();
+		$this->assertSame( '', get_option( Settings::OPTION )['content_language'] );
+	}
+
+	public function test_language_warning_is_shown() {
+		self::factory()->post->create(
+			array(
+				'post_title'   => 'Shop',
+				'post_content' => 'This is the best shop for you and all of the people that want to buy with us, and it is where we have what you need.',
+			)
+		);
+		Settings::update( array( 'content_language' => 'pl' ) );
+		$html = $this->html();
+		$this->assertStringContainsString( 'notice-warning', $html );
+		$this->assertStringContainsString( 'Your content looks like it is written in &quot;en&quot;', $html );
+	}
+
+	public function test_no_language_warning_without_mismatch() {
+		$this->assertStringNotContainsString( 'notice-warning', $this->html() );
+	}
+
+	public function test_feature_status_shows_seo_keys_with_provided_by() {
+		$dir = WP_PLUGIN_DIR . '/wordpress-seo';
+		mkdir( $dir, 0777, true );
+		$this->dirs[] = $dir;
+		file_put_contents( $dir . '/wp-seo.php', "<?php\n/*\nPlugin Name: Yoast SEO\n*/\n" );
+		$this->active[] = 'wordpress-seo/wp-seo.php';
+		$html           = $this->html();
+		$this->assertStringContainsString( 'Meta description is provided by Yoast SEO — Aktio Connector does not duplicate it', $html );
+		$this->assertStringContainsString( 'Page title is provided by Yoast SEO', $html );
+		$this->assertStringContainsString( 'Open Graph is provided by Yoast SEO', $html );
+	}
+
+	public function test_feature_status_shows_seo_keys_active_without_seo_plugin() {
+		$html = $this->html();
+		$this->assertStringContainsString( 'Robots meta', $html );
+		$this->assertStringContainsString( 'X (Twitter) cards', $html );
+	}
+
+	public function test_indexnow_log_and_sitemap_form_have_nonce_and_escaping() {
+		update_option( \AktioConnector\IndexNow::LOG, array( array( 'time' => '2026-10-20T10:00:00+00:00', 'code' => 200, 'count' => 7 ), array( 'time' => '"><script>', 'code' => null, 'count' => 1 ) ) );
+		$html = $this->html();
+		$this->assertStringContainsString( '2026-10-20T10:00:00+00:00', $html );
+		$this->assertStringNotContainsString( '<script>', $html );
+		$this->assertStringContainsString( 'name="action" value="aktio_connector_indexnow_sitemap"', $html );
+		$this->assertStringContainsString( 'name="_aktio_sitemap_nonce"', $html );
+		$this->assertStringContainsString( 'Submit the whole sitemap', $html );
+	}
+
+	public function test_sitemap_handler_requires_nonce() {
+		$this->action_post( SettingsPage::SITEMAP_NONCE, '_aktio_sitemap_nonce', false );
+		$this->expectException( WPDieException::class );
+		SettingsPage::handle_indexnow_sitemap();
+	}
+
+	public function test_sitemap_handler_requires_capability() {
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'editor' ) ) );
+		$this->action_post( SettingsPage::SITEMAP_NONCE, '_aktio_sitemap_nonce' );
+		$this->expectException( WPDieException::class );
+		SettingsPage::handle_indexnow_sitemap();
+	}
+
+	public function test_sitemap_handler_reports_disabled_module() {
+		$this->action_post( SettingsPage::SITEMAP_NONCE, '_aktio_sitemap_nonce' );
+		$location = $this->submit_to_location( array( SettingsPage::class, 'handle_indexnow_sitemap' ) );
+		$this->assertStringContainsString( 'invalid=1', $location );
+		$this->assertStringContainsString( 'IndexNow is disabled or the site is not public.', implode( '|', (array) get_transient( 'aktio_connector_errors_' . get_current_user_id() ) ) );
+	}
+
+	public function test_sitemap_handler_submits_when_enabled() {
+		Settings::update( array( 'indexnow' => array( 'enabled' => true ) ) );
+		update_option( 'blog_public', '1' );
+		delete_option( \AktioConnector\IndexNow::SITEMAP_LAST );
+		$mock = static function () {
+			return array( 'response' => array( 'code' => 200, 'message' => 'OK' ), 'body' => '', 'headers' => array(), 'cookies' => array() );
+		};
+		add_filter( 'pre_http_request', $mock );
+		$this->action_post( SettingsPage::SITEMAP_NONCE, '_aktio_sitemap_nonce' );
+		$location = $this->submit_to_location( array( SettingsPage::class, 'handle_indexnow_sitemap' ) );
+		remove_filter( 'pre_http_request', $mock );
+		$this->assertStringContainsString( 'aktio_notice=sitemap', $location );
+		$this->assertNotEmpty( \AktioConnector\IndexNow::log( 1 ) );
+	}
+
+	public function test_sitemap_notice_is_rendered() {
+		$_GET['aktio_notice'] = 'sitemap';
+		$html                 = $this->html();
+		unset( $_GET['aktio_notice'] );
+		$this->assertStringContainsString( 'The sitemap was submitted to IndexNow.', $html );
+		$_GET['aktio_notice'] = '<script>';
+		$html                 = $this->html();
+		unset( $_GET['aktio_notice'] );
+		$this->assertStringNotContainsString( '<script>', $html );
+	}
+
+	public function test_cache_section_shows_detected_plugin_and_last_purge() {
+		$dir = WP_PLUGIN_DIR . '/wp-rocket';
+		mkdir( $dir, 0777, true );
+		$this->dirs[] = $dir;
+		file_put_contents( $dir . '/wp-rocket.php', "<?php\n/*\nPlugin Name: WP Rocket\n*/\n" );
+		$this->active[] = 'wp-rocket/wp-rocket.php';
+		update_option( \AktioConnector\CachePurge::OPTION, '2026-10-21T08:00:00+00:00' );
+		$html = $this->html();
+		$this->assertStringContainsString( 'Detected cache plugin', $html );
+		$this->assertStringContainsString( (string) \AktioConnector\CachePurge::detected(), $html );
+		$this->assertStringContainsString( '2026-10-21T08:00:00+00:00', $html );
+		$this->assertStringContainsString( 'name="action" value="aktio_connector_cache_purge"', $html );
+		$this->assertStringContainsString( 'name="_aktio_cache_nonce"', $html );
+		$this->assertStringContainsString( 'Clear now', $html );
+	}
+
+	public function test_cache_section_without_plugin() {
+		$html = $this->html();
+		$this->assertStringContainsString( 'No supported cache plugin detected.', $html );
+	}
+
+	public function test_cache_handler_requires_nonce_and_capability() {
+		$this->action_post( SettingsPage::CACHE_NONCE, '_aktio_cache_nonce', false );
+		try {
+			SettingsPage::handle_cache_purge();
+			$this->fail( 'Zły nonce powinien przerwać żądanie.' );
+		} catch ( WPDieException $e ) {
+			$this->assertTrue( true );
+		}
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'editor' ) ) );
+		$this->action_post( SettingsPage::CACHE_NONCE, '_aktio_cache_nonce' );
+		$this->expectException( WPDieException::class );
+		SettingsPage::handle_cache_purge();
+	}
+
+	public function test_cache_handler_redirects_with_notice() {
+		$this->action_post( SettingsPage::CACHE_NONCE, '_aktio_cache_nonce' );
+		$location = $this->submit_to_location( array( SettingsPage::class, 'handle_cache_purge' ) );
+		$this->assertStringContainsString( 'aktio_notice=cache_none', $location );
+	}
+
+	public function test_ai_visibility_table_and_cache_note() {
+		\AktioConnector\Metrics::install();
+		\AktioConnector\Metrics::record_bot( 'Mozilla/5.0 (compatible; GPTBot/1.1; +https://openai.com/gptbot)' );
+		\AktioConnector\Metrics::record_referral( 'chatgpt.com', '/produkt/<b>x</b>/' );
+		$html = $this->html();
+		$this->assertStringContainsString( 'GPTBot', $html );
+		$this->assertStringContainsString( 'chatgpt.com', $html );
+		$this->assertStringContainsString( 'Top landing pages', $html );
+		$this->assertStringContainsString( 'lower bound', $html );
+		$this->assertStringNotContainsString( '<b>x</b>', $html );
+	}
+
+	public function test_settings_script_enqueued_only_on_own_screen() {
+		wp_deregister_script( 'aktio-settings' );
+		wp_dequeue_script( 'aktio-settings' );
+		SettingsPage::enqueue_assets( 'index.php' );
+		$this->assertFalse( wp_script_is( 'aktio-settings', 'enqueued' ) );
+		SettingsPage::enqueue_assets( 'settings_page_' . SettingsPage::SLUG );
+		$this->assertTrue( wp_script_is( 'aktio-settings', 'enqueued' ) );
+	}
 }
