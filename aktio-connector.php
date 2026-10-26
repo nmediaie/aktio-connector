@@ -23,6 +23,7 @@ define( 'AKTIO_CONNECTOR_FILE', __FILE__ );
 require_once __DIR__ . '/includes/Settings.php';
 require_once __DIR__ . '/includes/Detector.php';
 require_once __DIR__ . '/includes/Language.php';
+require_once __DIR__ . '/includes/Multilang.php';
 require_once __DIR__ . '/includes/Updates.php';
 require_once __DIR__ . '/includes/Rest.php';
 require_once __DIR__ . '/includes/Schema/Graph.php';

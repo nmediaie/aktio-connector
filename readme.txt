@@ -24,6 +24,7 @@ Aktio Connector makes a WordPress site easier for search engines and AI bots to 
 * **AI visit measurement (new in 0.2):** counts visits of AI bots and visits coming from AI assistants and AI search (ChatGPT, Perplexity, Gemini, Copilot, Claude), without cookies. See the privacy section below.
 * **FAQ block and shortcode (new in 0.2):** the `aktio/faq` block and the `[aktio_faq]` shortcode (`Q: ...` / `A: ...` line by line) render questions and answers and add FAQPage schema.
 * **Catalog scan for the Aktio agent (new in 0.2):** read-only REST routes list products (brands, images, missing ALT texts, description lengths) and images without ALT text, and a route to set ALT texts in bulk (up to 50 per call, with the previous value returned for every item). Available to authenticated users with the right capabilities.
+* **Multilingual awareness (unreleased):** detects WPML and Polylang and reports the active languages (`languages`, `multilingual` in `aktio/v1/status`). The catalog scan returns the language of each product and accepts `lang`; media without ALT text carry a `lang` too; IndexNow submissions are reported per language and per URL. Without a multilingual plugin the site is a single language (the site locale).
 * **robots.txt for AI bots:** appends a block for GPTBot, OAI-SearchBot, ClaudeBot, PerplexityBot, Google-Extended and Applebot-Extended at the end of robots.txt. Bots are allowed by default and you can block each one in the settings.
 * **llms.txt:** serves `/llms.txt` with a short description of the business, a list of pages, recent posts and products. Password-protected and unpublished content is left out.
 * **Site Health over REST:** Site Health test results and environment information available to logged-in administrators through `aktio/v1/health`.
@@ -108,6 +109,9 @@ The default brand goes through WordPress text sanitization: HTML tags are stripp
 No cookies, no visitor identifiers and no stored IP addresses. See "Privacy of AI visit measurement" above.
 
 == Changelog ==
+
+= Unreleased =
+* New: multilingual awareness (WPML, Polylang): `languages` and `multilingual` in the status, `lang` on catalog scan products (and an optional `lang` filter with per-language paging), `lang` on media without ALT text, and per-URL / per-language reports for IndexNow submissions (a URL or a list of URLs can be submitted).
 
 = 0.2.0 =
 * New: basic SEO without an SEO plugin: meta description, Open Graph, X cards, custom title and `noindex` for internal pages, with "SEO title" and "SEO description" fields for posts, pages, products and categories. Everything switches off for features already provided by an SEO plugin (or Jetpack Open Graph).

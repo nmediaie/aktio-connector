@@ -219,6 +219,44 @@ class IndexNowTest extends WP_UnitTestCase {
 		$this->assertIsArray( IndexNow::submit_sitemap() );
 	}
 
+	public function test_submit_sitemap_accepts_string_url_and_reports_per_url() {
+		$this->enable();
+		$url    = home_url( '/jeden/' );
+		$result = IndexNow::submit_sitemap( $url );
+		$this->assertIsArray( $result );
+		$this->assertSame( 1, $result['queued'] );
+		$this->assertSame( 200, $result['code'] );
+		$this->assertSame( array( $url ), json_decode( $this->requests[0]['args']['body'], true )['urlList'] );
+		$this->assertSame( array( array( 'url' => $url, 'lang' => 'en', 'sent' => true ) ), $result['urls'] );
+		$this->assertSame( 'single_sitemap', $result['note'] );
+		// Jawna lista adresów nie uruchamia limitu 24 h i go nie ustawia.
+		$this->assertIsArray( IndexNow::submit_sitemap( array( $url, home_url( '/dwa/' ) ) ) );
+		$this->assertSame( 0, (int) get_option( IndexNow::SITEMAP_LAST, 0 ) );
+	}
+
+	public function test_submit_sitemap_array_skips_foreign_host() {
+		$this->enable();
+		$own    = home_url( '/moja/' );
+		$result = IndexNow::submit_sitemap( array( $own, 'https://obcy.example/x' ) );
+		$this->assertSame( 1, $result['queued'] );
+		$this->assertSame( array( true, false ), array_column( $result['urls'], 'sent' ) );
+		$this->assertSame( 'foreign_host', $result['urls'][1]['error'] );
+	}
+
+	public function test_rest_sitemap_accepts_urls_string_or_array_and_rejects_other_types() {
+		$this->enable();
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
+		$req = new WP_REST_Request( 'POST', '/aktio/v1/indexnow/sitemap' );
+		$req->set_header( 'content-type', 'application/json' );
+		$req->set_body( wp_json_encode( array( 'urls' => home_url( '/a/' ) ) ) );
+		$res = rest_do_request( $req );
+		$this->assertSame( 200, $res->get_status() );
+		$this->assertSame( 1, $res->get_data()['queued'] );
+
+		$req->set_body( wp_json_encode( array( 'urls' => 5 ) ) );
+		$this->assertSame( 400, rest_do_request( $req )->get_status() );
+	}
+
 	public function test_rules_flushed_once_when_rules_version_changes() {
 		global $wp_rewrite;
 		$wp_rewrite->set_permalink_structure( '/%postname%/' );
