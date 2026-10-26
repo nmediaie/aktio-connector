@@ -6,7 +6,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 version="$(sed -n 's/^ \* Version:[[:space:]]*//p' aktio-connector.php | head -1 | tr -d '[:space:]')"
 [ -n "$version" ] || { echo "Nie znaleziono wersji w aktio-connector.php" >&2; exit 1; }
-const_version="$(grep -E "define\( 'AKTIO_CONNECTOR_VERSION'" aktio-connector.php | head -1 | sed -E "s/.*'([^']+).*$/\1/")"
+const_version="$(grep -oE "AKTIO_CONNECTOR_VERSION., .[0-9.]+" aktio-connector.php | head -1 | sed -E "s/.*, .//")"
 [ "$const_version" = "$version" ] || { echo "NAGŁÓWEK ($version) != STAŁA ($const_version) — zrób jeden bump (nagłówek + AKTIO_CONNECTOR_VERSION)" >&2; exit 1; }
 out="dist/aktio-connector-${version}.zip"
 mkdir -p dist
