@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Aktio Connector
  * Description:       Schema.org, robots.txt and llms.txt for AI bots, Site Health and updates over REST — standalone or with Aktio.
- * Version:           0.2.0
+ * Version:           0.2.1
  * Requires at least: 6.2
  * Requires PHP:      7.4
  * Author:            NM Media
