@@ -16,7 +16,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'AKTIO_CONNECTOR_VERSION', '0.2.0' );
+define( 'AKTIO_CONNECTOR_VERSION', '0.2.1' );
 define( 'AKTIO_CONNECTOR_FILE', __FILE__ );
 
 // Prosty autoload przez require — wtyczka działa po rozpakowaniu zipa bez vendor/.
