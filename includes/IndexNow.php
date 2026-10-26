@@ -297,11 +297,14 @@ class IndexNow {
 	}
 
 	/**
-	 * Zgłasza wszystkie publiczne adresy (strona główna i opublikowane treści bez noindex) — raz na 24 h.
+	 * Zgłasza adresy do IndexNow. Bez argumentu: wszystkie publiczne adresy (strona główna każdego języka
+	 * i opublikowane treści bez noindex) — raz na 24 h. Z adresem (string) lub listą adresów: tylko je
+	 * (bez limitu 24 h, wyłącznie z hosta witryny). Odpowiedź ma raport per adres i per język.
 	 *
-	 * @return array{queued:int, sent:int, code:int|null}|\WP_Error
+	 * @param string|string[]|null $urls Adresy do zgłoszenia albo null (cała mapa).
+	 * @return array{queued:int, sent:int, code:int|null, urls:array, languages:array, note:string}|\WP_Error
 	 */
-	public static function submit_sitemap() {
+	public static function submit_sitemap( $urls = null ) {
 		if ( ! self::active() ) {
 			return new \WP_Error(
 				'aktio_indexnow_disabled',
@@ -309,45 +312,117 @@ class IndexNow {
 				array( 'status' => 400 )
 			);
 		}
-		$last = (int) get_option( self::SITEMAP_LAST, 0 );
-		if ( $last > 0 && time() - $last < DAY_IN_SECONDS ) {
-			return new \WP_Error(
-				'aktio_rate_limited',
-				__( 'The sitemap can be submitted once every 24 hours.', 'aktio-connector' ),
-				array( 'status' => 429 )
-			);
+		$explicit = null !== $urls;
+		if ( ! $explicit ) {
+			$last = (int) get_option( self::SITEMAP_LAST, 0 );
+			if ( $last > 0 && time() - $last < DAY_IN_SECONDS ) {
+				return new \WP_Error(
+					'aktio_rate_limited',
+					__( 'The sitemap can be submitted once every 24 hours.', 'aktio-connector' ),
+					array( 'status' => 429 )
+				);
+			}
+			$urls = self::collect_urls();
+		} else {
+			$urls = array_slice( array_values( array_unique( array_filter( (array) $urls, 'is_string' ) ) ), 0, self::BATCH );
 		}
-		$urls = array( home_url( '/' ) );
-		$ids  = get_posts(
+
+		// Do IndexNow idą tylko adresy z hosta witryny; reszta dostaje błąd w raporcie.
+		$host     = wp_parse_url( home_url(), PHP_URL_HOST );
+		$accepted = array();
+		$report   = array();
+		foreach ( $urls as $url ) {
+			$ok       = wp_parse_url( $url, PHP_URL_HOST ) === $host;
+			$report[] = array(
+				'url'  => $url,
+				'lang' => self::url_lang( $url ),
+				'sent' => false,
+			) + ( $ok ? array() : array( 'error' => 'foreign_host' ) );
+			if ( $ok ) {
+				$accepted[] = $url;
+			}
+		}
+		$code = $accepted ? self::send( $accepted ) : null;
+		$ok   = null !== $code && $code >= 200 && $code < 300;
+		foreach ( $report as &$row ) {
+			$row['sent'] = $ok && ! isset( $row['error'] );
+		}
+		unset( $row );
+		// Znacznik 24 h dopiero po sukcesie — nieudana próba nie blokuje ponowienia.
+		if ( $ok && ! $explicit ) {
+			update_option( self::SITEMAP_LAST, time(), false );
+		}
+
+		$langs = array();
+		foreach ( $report as $row ) {
+			$key = (string) $row['lang'];
+			$langs[ $key ] = $langs[ $key ] ?? array(
+				'lang'   => $row['lang'],
+				'queued' => 0,
+				'sent'   => 0,
+			);
+			++$langs[ $key ]['queued'];
+			$langs[ $key ]['sent'] += $row['sent'] ? 1 : 0;
+		}
+		return array(
+			'queued'    => count( $accepted ),
+			'sent'      => $ok ? count( $accepted ) : 0,
+			'code'      => $code,
+			'urls'      => $report,
+			'languages' => array_values( $langs ),
+			'note'      => null === Multilang::plugin() ? 'single_sitemap' : 'per_language',
+		);
+	}
+
+	/**
+	 * Adresy całej mapy: strona główna każdego języka plus opublikowane, nienoindeksowane treści.
+	 *
+	 * @return string[]
+	 */
+	private static function collect_urls(): array {
+		$urls = array();
+		foreach ( Multilang::codes() as $code ) {
+			$urls[] = Multilang::home_url( $code );
+		}
+		Multilang::switch_to( 'all' );
+		$ids = get_posts(
 			array(
-				'post_type'      => array_values( array_diff( get_post_types( array( 'public' => true ) ), array( 'attachment' ) ) ),
-				'post_status'    => 'publish',
-				'has_password'   => false,
-				'posts_per_page' => self::BATCH - 1,
-				'orderby'        => 'ID',
-				'order'          => 'ASC',
-				'fields'         => 'ids',
-				'no_found_rows'  => true,
+				'post_type'        => array_values( array_diff( get_post_types( array( 'public' => true ) ), array( 'attachment' ) ) ),
+				'post_status'      => 'publish',
+				'has_password'     => false,
+				'posts_per_page'   => self::BATCH - 1,
+				'orderby'          => 'ID',
+				'order'            => 'ASC',
+				'fields'           => 'ids',
+				'no_found_rows'    => true,
+				'suppress_filters' => true,
+				'lang'             => '', // Polylang: wszystkie języki.
 			)
 		);
+		Multilang::switch_to( null );
 		foreach ( $ids as $id ) {
 			$post = get_post( $id );
 			if ( $post instanceof \WP_Post && ! Head::noindex_for_post( $post ) ) {
 				$urls[] = (string) get_permalink( $post );
 			}
 		}
-		$urls   = array_values( array_unique( $urls ) );
-		$code   = self::send( $urls );
-		$ok     = null !== $code && $code >= 200 && $code < 300;
-		// Znacznik 24 h dopiero po sukcesie — nieudana próba nie blokuje ponowienia.
-		if ( $ok ) {
-			update_option( self::SITEMAP_LAST, time(), false );
+		return array_values( array_unique( $urls ) );
+	}
+
+	/**
+	 * Język adresu: strona główna języka albo permalink wpisu; null gdy nie do ustalenia.
+	 */
+	private static function url_lang( string $url ): ?string {
+		if ( null === Multilang::plugin() ) {
+			return Multilang::default_lang();
 		}
-		return array(
-			'queued' => count( $urls ),
-			'sent'   => $ok ? count( $urls ) : 0,
-			'code'   => $code,
-		);
+		foreach ( Multilang::codes() as $code ) {
+			if ( trailingslashit( Multilang::home_url( $code ) ) === trailingslashit( $url ) ) {
+				return $code;
+			}
+		}
+		$id = url_to_postid( $url );
+		return $id ? Multilang::post_lang( $id ) : null;
 	}
 
 	/**

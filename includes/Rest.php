@@ -184,6 +184,8 @@ class Rest {
 					'last'    => IndexNow::last(),
 				),
 				'update_log'       => Updates::log( 5 ),
+				'languages'        => Multilang::languages(),
+				'multilingual'     => Multilang::summary(),
 			)
 		);
 	}
@@ -196,10 +198,16 @@ class Rest {
 	}
 
 	/**
-	 * POST indexnow/sitemap: zgłasza całą mapę (raz na 24 h, potem `aktio_rate_limited`).
+	 * POST indexnow/sitemap: zgłasza całą mapę (raz na 24 h, potem `aktio_rate_limited`) albo podane `urls` (string lub lista).
 	 */
-	public static function indexnow_sitemap() {
-		$result = IndexNow::submit_sitemap();
+	public static function indexnow_sitemap( \WP_REST_Request $request ) {
+		$body = $request->get_json_params();
+		$body = is_array( $body ) ? $body : array();
+		$urls = $body['urls'] ?? ( $body['url'] ?? null );
+		if ( null !== $urls && ! is_string( $urls ) && ! ( is_array( $urls ) && array_filter( $urls, 'is_string' ) === $urls ) ) {
+			return self::invalid_params( __( 'The urls field must be a string or a list of strings.', 'aktio-connector' ) );
+		}
+		$result = IndexNow::submit_sitemap( $urls );
 		return is_wp_error( $result ) ? $result : rest_ensure_response( $result );
 	}
 
