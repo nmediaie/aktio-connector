@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Changed
+- Settings screen rebuilt into tabs: Overview, Business, SEO, Store (with WooCommerce), Bots & indexing, AI visibility, Tools and About Aktio. Tabs work without JavaScript (`?tab=` links); with it they switch in place, support arrow keys and stay selected after saving. A validation error opens the tab with the field.
+- Overview tab: a to-do list of what hurts how the site looks in search and AI answers (empty site title, default WordPress tagline, search engines discouraged, no logo, no business description, local business without an address), feature status with badges and links to robots.txt, llms.txt and the XML sitemap.
+- Pick lists instead of typed codes: content language, address country and merchant countries (WooCommerce country list; the store country is the first option), business type as two described choices, customer service languages as checkboxes (up to 5).
+- New fields for data the plugin already supported: opening hours (rows of days and times) and location (latitude, longitude), shown for a local business.
+- AI bots as switches with the company behind each bot and what blocking it changes.
+- Plain-language descriptions on every tab and card, sticky save bar with an unsaved-changes warning, character counters, Aktio logo and an About Aktio tab with a link to aktioapp.com.
+- Polish translation completed (including three strings left untranslated in 0.2.1).
+
 ### Fixed
 - Empty WordPress site title: `<title>`, `og:site_name`, `og:title` on the home page, `WebSite.name`, the home breadcrumb item, the untitled home `WebPage` and its llms.txt link fall back to the company name from the settings (an SEO plugin used to hide the empty title with its own setting).
 - The default WordPress tagline ("Just another WordPress site", "Kolejna witryna WordPress") is no longer used as the home meta description, title tagline or llms.txt description.
