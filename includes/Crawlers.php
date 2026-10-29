@@ -25,6 +25,7 @@ class Crawlers {
 		add_action( 'init', array( __CLASS__, 'add_rewrite' ) );
 		add_filter( 'query_vars', array( __CLASS__, 'query_vars' ) );
 		add_action( 'template_redirect', array( __CLASS__, 'serve' ) );
+		add_filter( 'redirect_canonical', array( __CLASS__, 'no_trailing_slash' ) );
 		add_action( 'save_post', array( __CLASS__, 'clear_cache' ) );
 		add_action( 'deleted_post', array( __CLASS__, 'clear_cache' ) );
 		add_action( 'update_option_blogname', array( __CLASS__, 'clear_cache' ) );
@@ -57,6 +58,16 @@ class Crawlers {
 	public static function query_vars( array $vars ): array {
 		$vars[] = self::QUERY_VAR;
 		return $vars;
+	}
+
+	/**
+	 * redirect_canonical: /llms.txt zostaje bez ukośnika (rdzeń dopisałby go przy
+	 * strukturze bezpośrednich odnośników kończącej się na „/”).
+	 *
+	 * @param mixed $redirect Docelowy adres przekierowania.
+	 */
+	public static function no_trailing_slash( $redirect ) {
+		return get_query_var( self::QUERY_VAR ) ? false : $redirect;
 	}
 
 	/**
@@ -166,7 +177,7 @@ class Crawlers {
 		// Opis firmy ma pierwszeństwo przed hasłem witryny.
 		$desc = self::line( $company['description'] );
 		if ( '' === $desc ) {
-			$desc = self::line( (string) get_bloginfo( 'description' ) );
+			$desc = self::line( Settings::site_tagline() );
 		}
 		if ( '' !== $desc ) {
 			$out .= "\n> " . $desc . "\n";
@@ -201,8 +212,14 @@ class Crawlers {
 			)
 		);
 		$lines = array();
+		$front = (int) get_option( 'page_on_front' );
 		foreach ( $posts as $post ) {
-			$lines[] = self::link( get_the_title( $post ), get_permalink( $post ), '' );
+			$title = get_the_title( $post );
+			// Strona główna bez tytułu dostaje nazwę witryny zamiast pustego „[]”.
+			if ( '' === trim( $title ) && $front === (int) $post->ID ) {
+				$title = Settings::site_name();
+			}
+			$lines[] = self::link( $title, get_permalink( $post ), '' );
 		}
 		return $lines;
 	}

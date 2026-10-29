@@ -39,6 +39,7 @@ class IndexNow {
 		add_action( 'add_option_' . Settings::OPTION, array( __CLASS__, 'on_settings_added' ), 10, 2 );
 		add_filter( 'query_vars', array( __CLASS__, 'query_vars' ) );
 		add_action( 'template_redirect', array( __CLASS__, 'serve' ) );
+		add_filter( 'redirect_canonical', array( __CLASS__, 'no_trailing_slash' ) );
 		add_action( self::CRON, array( __CLASS__, 'flush' ) );
 		add_action( 'transition_post_status', array( __CLASS__, 'on_transition' ), 10, 3 );
 		add_action( 'wp_trash_post', array( __CLASS__, 'on_remove' ) );
@@ -128,6 +129,15 @@ class IndexNow {
 	public static function query_vars( array $vars ): array {
 		$vars[] = self::QUERY_VAR;
 		return $vars;
+	}
+
+	/**
+	 * redirect_canonical: plik klucza zostaje bez ukośnika na końcu (jak llms.txt).
+	 *
+	 * @param mixed $redirect Docelowy adres przekierowania.
+	 */
+	public static function no_trailing_slash( $redirect ) {
+		return get_query_var( self::QUERY_VAR ) ? false : $redirect;
 	}
 
 	/**

@@ -168,7 +168,7 @@ class ContentSchema {
 			'@type'           => 'WebSite',
 			'@id'             => home_url( '/#website' ),
 			'url'             => home_url( '/' ),
-			'name'            => get_bloginfo( 'name' ),
+			'name'            => Settings::site_name(),
 			'inLanguage'      => Language::current(),
 			'publisher'     => array( '@id' => home_url( '/#organization' ) ),
 			'potentialAction' => array(
@@ -184,10 +184,15 @@ class ContentSchema {
 
 	private static function title( ?\WP_Post $post ): string {
 		if ( ! $post ) {
-			return get_bloginfo( 'name' );
+			return Settings::site_name();
 		}
 		// Surowy tytuł bez filtrów (wptexturize itd.), ale bez HTML.
-		return Graph::plain( $post->post_title, 200 );
+		$title = Graph::plain( $post->post_title, 200 );
+		// Strona główna bez tytułu: nazwa witryny zamiast pustego `name`.
+		if ( '' === $title && (int) get_option( 'page_on_front' ) === (int) $post->ID ) {
+			return Settings::site_name();
+		}
+		return $title;
 	}
 
 	private static function description( \WP_Post $post ): string {
@@ -252,7 +257,7 @@ class ContentSchema {
 	private static function breadcrumb( \WP_Post $post, string $url ): array {
 		$items = array(
 			array(
-				'name' => get_bloginfo( 'name' ),
+				'name' => Settings::site_name(),
 				'url'  => home_url( '/' ),
 			),
 		);
