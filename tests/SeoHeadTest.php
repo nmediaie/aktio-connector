@@ -453,4 +453,115 @@ class SeoHeadTest extends WP_UnitTestCase {
 		$this->assertStringNotContainsString( 'Tajna', $this->head() );
 		$this->assertStringNotContainsString( 'name="description"', $this->head() );
 	}
+
+	public function test_empty_site_title_falls_back_to_company_name() {
+		update_option( 'blogname', '' );
+		Settings::update( array( 'company' => array( 'name' => 'Plantacja' ) ) );
+		$this->go_to( home_url( '/' ) );
+		$og = Head::og();
+		$this->assertSame( 'Plantacja', $og['og:site_name'] );
+		$this->assertSame( 'Plantacja', $og['og:title'] );
+		$this->assertSame( 'Plantacja', wp_get_document_title() );
+
+		// Wpis dostaje nazwę witryny po separatorze, jak przy wypełnionym tytule witryny.
+		$id = $this->post( array( 'post_title' => 'Lawenda' ) );
+		$this->go_to( get_permalink( $id ) );
+		$this->assertStringEndsWith( 'Plantacja', wp_get_document_title() );
+		$this->assertStringStartsWith( 'Lawenda', wp_get_document_title() );
+
+		// Wypełniony tytuł witryny ma pierwszeństwo przed nazwą firmy.
+		update_option( 'blogname', 'Tytuł witryny' );
+		$this->go_to( home_url( '/' ) );
+		$this->assertSame( 'Tytuł witryny', Head::og()['og:site_name'] );
+	}
+
+	public function test_default_wordpress_tagline_is_ignored() {
+		update_option( 'blogname', 'Plantacja' );
+		foreach ( array( 'Just another WordPress site', 'Kolejna witryna WordPress' ) as $tagline ) {
+			update_option( 'blogdescription', $tagline );
+			$this->go_to( home_url( '/' ) );
+			$this->assertSame( '', Head::description(), $tagline );
+			$this->assertSame( 'Plantacja', wp_get_document_title(), $tagline );
+			$this->assertStringNotContainsString( $tagline, $this->head(), $tagline );
+		}
+		update_option( 'blogdescription', 'Lawenda z Kodrąbka' );
+		$this->go_to( home_url( '/' ) );
+		$this->assertSame( 'Lawenda z Kodrąbka', Head::description() );
+	}
+
+	public function test_shop_page_has_description_og_and_canonical() {
+		$shop = self::factory()->post->create(
+			array(
+				'post_type'    => 'page',
+				'post_title'   => 'Sklep',
+				'post_content' => 'Produkty z naszej plantacji',
+				'post_excerpt' => '',
+				'post_status'  => 'publish',
+			)
+		);
+		update_option( 'woocommerce_shop_page_id', $shop );
+		// WooCommerce ustawia archiwum produktów przy rejestracji typu — w testach strona sklepu powstaje później.
+		$product_type              = get_post_type_object( 'product' );
+		$has_archive               = $product_type->has_archive;
+		$product_type->has_archive = 'sklep';
+		$this->go_to( get_post_type_archive_link( 'product' ) );
+		$this->assertTrue( is_post_type_archive( 'product' ) );
+
+		$this->assertSame( 'Produkty z naszej plantacji', Head::description() );
+		$og = Head::og();
+		$this->assertSame( 'Sklep', $og['og:title'] );
+		$this->assertSame( get_permalink( $shop ), $og['og:url'] );
+		$head = $this->head();
+
+		// Kanoniczny adres przy uprawnieniach wtyczki SEO wypisuje ona.
+		$this->provide( 'robots_meta' );
+		$provided = $this->head();
+		$product_type->has_archive = $has_archive;
+
+		$this->assertStringContainsString( '<link rel="canonical" href="' . esc_url( get_permalink( $shop ) ) . '" />', $head );
+		$this->assertStringNotContainsString( 'rel="canonical"', $provided );
+	}
+
+	public function test_canonical_on_term_archive_but_not_on_singular() {
+		$id   = $this->post();
+		$term = self::factory()->category->create_and_get();
+		wp_set_post_categories( $id, array( $term->term_id ) );
+		$this->go_to( get_term_link( $term ) );
+		$this->assertStringContainsString( '<link rel="canonical" href="' . esc_url( get_term_link( $term ) ) . '" />', $this->head() );
+
+		// Na wpisie kanoniczny adres wypisuje rdzeń (rel_canonical) — nie dublujemy.
+		$this->go_to( get_permalink( $id ) );
+		$this->assertStringNotContainsString( 'rel="canonical"', $this->head() );
+	}
+
+	public function test_users_sitemap_ignores_authors_of_pages_only() {
+		// Mapa użytkowników rdzenia pomija strony — autor samej strony nie robi z witryny wieloautorskiej.
+		$this->post();
+		$other = self::factory()->user->create( array( 'role' => 'editor' ) );
+		$this->post( array( 'post_type' => 'page', 'post_author' => $other ) );
+		$this->assertFalse( apply_filters( 'wp_sitemaps_add_provider', new stdClass(), 'users' ) );
+	}
+
+	public function test_sitemap_skips_mailpoet_pages_and_filterable_types() {
+		$types = apply_filters(
+			'wp_sitemaps_post_types',
+			array(
+				'post'          => 1,
+				'mailpoet_page' => 1,
+				'landing'       => 1,
+			)
+		);
+		$this->assertArrayNotHasKey( 'mailpoet_page', $types );
+		$this->assertArrayHasKey( 'landing', $types );
+
+		$extra = static function ( $excluded ) {
+			$excluded[] = 'landing';
+			return $excluded;
+		};
+		add_filter( 'aktio_connector_sitemap_excluded_post_types', $extra );
+		$types = apply_filters( 'wp_sitemaps_post_types', array( 'post' => 1, 'landing' => 1 ) );
+		remove_filter( 'aktio_connector_sitemap_excluded_post_types', $extra );
+		$this->assertArrayNotHasKey( 'landing', $types );
+		$this->assertArrayHasKey( 'post', $types );
+	}
 }

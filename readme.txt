@@ -111,6 +111,11 @@ No cookies, no visitor identifiers and no stored IP addresses. See "Privacy of A
 == Changelog ==
 
 = Unreleased =
+* Fix: an empty WordPress site title falls back to the company name (title, Open Graph, schema.org, llms.txt) and the default WordPress tagline is ignored.
+* Fix: meta description, Open Graph and canonical URL on the WooCommerce shop page; canonical URL on category and tag archives.
+* Fix: sitemap without MailPoet system pages and with the users sitemap removed for single-author sites (pages no longer count); `/llms.txt` without a trailing-slash redirect.
+
+= 0.2.1 =
 * New: multilingual awareness (WPML, Polylang): `languages` and `multilingual` in the status, `lang` on catalog scan products (and an optional `lang` filter with per-language paging), `lang` on media without ALT text, and per-URL / per-language reports for IndexNow submissions (a URL or a list of URLs can be submitted).
 
 = 0.2.0 =

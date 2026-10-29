@@ -169,6 +169,24 @@ class Settings {
 	}
 
 	/**
+	 * Nazwa witryny do tytułów, OG i schemy: tytuł witryny, a gdy pusty — nazwa firmy.
+	 * Pusty tytuł witryny ukrywały wtyczki SEO własnym ustawieniem nazwy.
+	 */
+	public static function site_name(): string {
+		$name = trim( (string) get_bloginfo( 'name' ) );
+		return '' !== $name ? $name : trim( (string) self::get()['company']['name'] );
+	}
+
+	/**
+	 * Opis witryny bez domyślnego hasła WordPressa („Just another WordPress site”) — to nie jest opis.
+	 */
+	public static function site_tagline(): string {
+		$tagline  = trim( (string) get_bloginfo( 'description' ) );
+		$defaults = array( 'Just another WordPress site', 'Kolejna witryna WordPress', __( 'Just another WordPress site' ) ); // phpcs:ignore WordPress.WP.I18n.MissingArgDomain -- tłumaczenie rdzenia.
+		return in_array( $tagline, $defaults, true ) ? '' : $tagline;
+	}
+
+	/**
 	 * Nazwa firmy zapisana przez użytkownika ('' = brak, obowiązuje nazwa witryny).
 	 */
 	private static function stored_name(): string {

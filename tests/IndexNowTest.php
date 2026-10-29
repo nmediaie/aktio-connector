@@ -425,4 +425,16 @@ class IndexNowTest extends WP_UnitTestCase {
 		$data = rest_do_request( new WP_REST_Request( 'GET', '/aktio/v1/status' ) )->get_data();
 		$this->assertSame( array( 'enabled' => false, 'last' => null ), $data['indexnow'] );
 	}
+
+	public function test_key_file_not_redirected_to_trailing_slash() {
+		global $wp_rewrite;
+		$this->enable();
+		$key = Settings::get()['indexnow']['key'];
+		$wp_rewrite->set_permalink_structure( '/%postname%/' );
+		IndexNow::add_rewrite();
+		flush_rewrite_rules();
+		$this->go_to( home_url( '/' . $key . '.txt' ) );
+		$this->assertSame( $key, get_query_var( IndexNow::QUERY_VAR ) );
+		$this->assertNull( redirect_canonical( home_url( '/' . $key . '.txt' ), false ) );
+	}
 }

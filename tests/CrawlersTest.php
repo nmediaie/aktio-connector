@@ -262,4 +262,28 @@ class CrawlersTest extends WP_UnitTestCase {
 		update_option( 'WPLANG', 'pl_PL' );
 		$this->assertFalse( get_transient( Crawlers::TRANSIENT ), 'WPLANG' );
 	}
+
+	public function test_llms_not_redirected_to_trailing_slash() {
+		global $wp_rewrite;
+		$wp_rewrite->set_permalink_structure( '/%postname%/' );
+		Crawlers::add_rewrite();
+		flush_rewrite_rules();
+		$this->go_to( home_url( '/llms.txt' ) );
+		$this->assertSame( '1', (string) get_query_var( Crawlers::QUERY_VAR ) );
+		$this->assertNull( redirect_canonical( home_url( '/llms.txt' ), false ) );
+	}
+
+	public function test_llms_skips_default_tagline_and_names_untitled_front_page() {
+		update_option( 'blogname', '' );
+		Settings::update( array( 'company' => array( 'name' => 'Plantacja', 'description' => '' ) ) );
+		update_option( 'blogdescription', 'Kolejna witryna WordPress' );
+		$front = self::factory()->post->create( array( 'post_type' => 'page', 'post_title' => '' ) );
+		update_option( 'show_on_front', 'page' );
+		update_option( 'page_on_front', $front );
+
+		$out = Crawlers::llms();
+		$this->assertStringNotContainsString( 'Kolejna witryna WordPress', $out );
+		$this->assertStringNotContainsString( '- []', $out );
+		$this->assertStringContainsString( '- [Plantacja](' . get_permalink( $front ) . ')', $out );
+	}
 }
