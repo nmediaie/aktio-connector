@@ -30,7 +30,7 @@ Aktio Connector makes a WordPress site easier for search engines and AI bots to 
 * **Site Health over REST:** Site Health test results and environment information available to logged-in administrators through `aktio/v1/health`.
 * **Updates over REST with a log:** the list of available core, plugin and theme updates and a way to apply them through `aktio/v1/updates`. Every update is written to a log (the last 50 entries) shown in the settings. The plugin never rolls anything back automatically.
 
-You edit everything under **Settings → Aktio Connector**. The screen also shows which features are provided by this plugin and which by another SEO plugin or a physical file, plus the update log.
+You edit everything under **Settings → Aktio Connector**, split into tabs: Overview (what is still worth filling in, which features are provided by this plugin and which by another SEO plugin or a physical file), Business, SEO, Store, Bots & indexing, AI visibility, Tools (cache, update log) and About Aktio.
 
 **Privacy and security**
 
@@ -111,6 +111,7 @@ No cookies, no visitor identifiers and no stored IP addresses. See "Privacy of A
 == Changelog ==
 
 = Unreleased =
+* New: settings screen in tabs (Overview with a to-do list, Business, SEO, Store, Bots & indexing, AI visibility, Tools, About Aktio), pick lists instead of typed codes, opening hours and location fields, AI bots as switches with descriptions, Aktio logo.
 * Fix: an empty WordPress site title falls back to the company name (title, Open Graph, schema.org, llms.txt) and the default WordPress tagline is ignored.
 * Fix: meta description, Open Graph and canonical URL on the WooCommerce shop page; canonical URL on category and tag archives.
 * Fix: sitemap without MailPoet system pages and with the users sitemap removed for single-author sites (pages no longer count); `/llms.txt` without a trailing-slash redirect.

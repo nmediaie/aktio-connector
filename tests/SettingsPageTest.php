@@ -332,8 +332,9 @@ class SettingsPageTest extends WP_UnitTestCase {
 	public function test_page_renders_without_woocommerce_and_without_merchant_inputs() {
 		SettingsPage::$assume_no_woocommerce = true;
 		$html = $this->html();
-		$this->assertStringContainsString( '<h2>Merchant</h2>', $html );
-		$this->assertStringContainsString( 'Merchant fields work with a WooCommerce store.', $html );
+		// Bez sklepu nie ma zakładki „Sklep” ani jej pól.
+		$this->assertStringNotContainsString( 'aktio-tab-store', $html );
+		$this->assertStringNotContainsString( 'aktio-panel-store', $html );
 		$this->assertStringNotContainsString( 'merchant[', $html );
 		$this->assertStringNotContainsString( 'Shipping cost', $html );
 		$this->assertStringContainsString( 'name="company[name]"', $html );
@@ -347,7 +348,7 @@ class SettingsPageTest extends WP_UnitTestCase {
 		$this->assertSame( 'Zostaje', Settings::get()['merchant']['default_brand'] );
 	}
 
-	public function test_polish_note_without_woocommerce() {
+	public function test_polish_tabs_without_woocommerce() {
 		SettingsPage::$assume_no_woocommerce = true;
 		$this->assertTrue( load_textdomain( 'aktio-connector', dirname( __DIR__ ) . '/languages/aktio-connector-pl_PL.mo' ) );
 		try {
@@ -355,7 +356,10 @@ class SettingsPageTest extends WP_UnitTestCase {
 		} finally {
 			unload_textdomain( 'aktio-connector' );
 		}
-		$this->assertStringContainsString( 'Pola sprzedawcy działają ze sklepem WooCommerce.', $html );
+		foreach ( array( 'Przegląd', 'Firma', 'Boty i indeksowanie', 'Widoczność w AI', 'Narzędzia', 'O Aktio' ) as $label ) {
+			$this->assertMatchesRegularExpression( '#role="tab"[^>]*>' . preg_quote( $label, '#' ) . '</a>#', $html, $label );
+		}
+		$this->assertStringNotContainsString( 'aktio-tab-store', $html );
 	}
 
 	public function test_invalid_flag_without_transient_shows_no_error_box() {
@@ -399,9 +403,11 @@ class SettingsPageTest extends WP_UnitTestCase {
 		$this->assertSame( 'DE', get_option( Settings::OPTION )['merchant']['return_policy']['country'] );
 	}
 
-	public function test_country_hints_say_empty_means_store_country() {
+	public function test_country_selects_start_with_store_country() {
+		update_option( 'woocommerce_default_country', 'PL:DS' );
 		$html = $this->html();
-		$this->assertSame( 2, substr_count( $html, 'Leave empty to use the store country. Turn the checkbox off to stop declaring this data.' ) );
+		$this->assertSame( 2, preg_match_all( '#<option value="" selected=\'selected\'>Store country: [^<]+\(PL\)</option>#', $html ) );
+		$this->assertSame( 2, substr_count( $html, 'To stop declaring this data, clear the checkbox above.' ) );
 		$this->assertStringNotContainsString( 'no policy is emitted', $html );
 	}
 
@@ -412,7 +418,8 @@ class SettingsPageTest extends WP_UnitTestCase {
 		} finally {
 			unload_textdomain( 'aktio-connector' );
 		}
-		$this->assertSame( 2, substr_count( $html, 'Puste = kraj sklepu. Aby przestać deklarować te dane, odznacz pole wyboru.' ) );
+		$this->assertSame( 2, substr_count( $html, '>Kraj sklepu: ' ) );
+		$this->assertSame( 2, substr_count( $html, 'Aby przestać deklarować te dane, odznacz pole wyboru powyżej.' ) );
 	}
 
 	// --- SEO, język, IndexNow, weryfikacja, cache, pomiar AI (wersja 0.2.0) ---

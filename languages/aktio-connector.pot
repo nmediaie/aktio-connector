@@ -2,23 +2,23 @@
 # This file is distributed under the GPL-2.0-or-later.
 msgid ""
 msgstr ""
-"Project-Id-Version: Aktio Connector 0.2.0\n"
-"Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/aktio-connector\n"
+"Project-Id-Version: Aktio Connector 0.2.1\n"
+"Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/p\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-10-23T13:47:26+00:00\n"
+"POT-Creation-Date: 2026-10-29T10:11:23+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: aktio-connector\n"
 
 #. Plugin Name of the plugin
 #: aktio-connector.php
-#: includes/Admin/SettingsPage.php:50
-#: includes/Admin/SettingsPage.php:51
-#: includes/Admin/SettingsPage.php:275
+#: includes/Admin/SettingsPage.php:116
+#: includes/Admin/SettingsPage.php:117
+#: includes/Admin/SettingsPage.php:551
 msgid "Aktio Connector"
 msgstr ""
 
@@ -32,594 +32,1018 @@ msgstr ""
 msgid "NM Media"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:60
+#: includes/Admin/SettingsPage.php:126
 msgid "Settings"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:70
-#: includes/Admin/SettingsPage.php:111
+#: includes/Admin/SettingsPage.php:136
+#: includes/Admin/SettingsPage.php:186
 msgid "You are not allowed to change these settings."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:277
+#: includes/Admin/SettingsPage.php:437
 msgid "Settings saved."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:283
-msgid "Connection to Aktio: this plugin works on its own; Aktio uses it through an application password."
+#: includes/Admin/SettingsPage.php:449
+msgid "This is how search engines and AI assistants learn who you are. The data goes into schema.org structured data (JSON-LD) on every page and into llms.txt."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:292
-msgid "Company"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:293
-msgid "This data goes into schema.org markup (Organization or LocalBusiness). An empty name means the site title."
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:295
-msgid "Company name"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:296
-msgid "Type"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:302
-msgid "Logo URL"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:303
-msgid "Phone"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:304
-msgid "Email"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:305
-msgid "Street and number"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:306
-msgid "City"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:307
-msgid "Postal code"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:308
-#: includes/Admin/SettingsPage.php:599
-msgid "Country"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:309
-msgid "Social profiles (sameAs)"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:311
-msgid "One URL per line, up to 10."
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:316
-msgid "AI bots in robots.txt"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:323
-msgid "Allow"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:324
-msgid "Block"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:334
-msgid "Save changes"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:363
-msgid "The sitemap was submitted to IndexNow."
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:364
-msgid "Cache cleared."
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:365
-msgid "No supported cache plugin was found, nothing to clear."
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:372
-msgid "SEO"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:376
-msgid "Home page description"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:378
-msgid "Meta description of the home page, up to 160 characters. Used only when no SEO plugin provides it."
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:382
-msgid "Default social image"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:384
-msgid "Choose the default social image"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:384
-msgid "Use this image"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:384
-msgid "Choose image"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:385
-msgid "Shown when a page or product has no image of its own. Must be an https:// address; leave empty for none."
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:392
-msgid "Content language"
-msgstr ""
-
-#. translators: 1: detected language code, 2: configured content language
-#: includes/Admin/SettingsPage.php:397
-#, php-format
-msgid "Your content looks like it is written in \"%1$s\", but the content language is set to \"%2$s\". Check the setting below."
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:403
-msgid "Language of the site content"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:405
-msgid "A code such as pl, en-IE or de-DE. It sets the lang attribute, og:locale, schema inLanguage and llms.txt; the admin panel stays in your language. Leave empty to use the site language."
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:413
-msgid "Extended company data"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:417
-msgid "Description"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:419
-msgid "A short description of the company, up to 300 characters."
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:421
-msgid "Founding date"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:422
-msgid "Area served"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:423
-msgid "Customer service phone"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:424
-msgid "Customer service email"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:425
-msgid "Customer service languages"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:431
-msgid "IndexNow"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:435
-msgid "Report changes"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:436
-msgid "Tell search engines about new and changed pages"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:437
-msgid "IndexNow reports the addresses of new and changed pages to Bing and other IndexNow search engines. It does not send page content or visitor data. Nothing is sent while the site is hidden from search engines or for pages marked noindex."
-msgstr ""
-
-#. translators: %s: date and time of the last successful submission, or a dash
-#: includes/Admin/SettingsPage.php:443
-#, php-format
-msgid "Last successful submission: %s"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:447
-#: includes/Admin/SettingsPage.php:732
-msgid "Date (UTC)"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:447
-msgid "Addresses"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:447
-msgid "Response code"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:457
-msgid "No submissions yet."
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:459
-msgid "Submit the whole sitemap"
+#: includes/Admin/SettingsPage.php:453
+msgid "Basic SEO for sites without an SEO plugin. If Yoast SEO, Rank Math or another SEO plugin is active, it takes over the features it provides and the matching fields here are not used."
 msgstr ""
 
 #: includes/Admin/SettingsPage.php:460
-msgid "One-off submission of all public pages. Available once every 24 hours and only when IndexNow is enabled."
+msgid "Data Google needs to show your products with shipping and return details in Search and Shopping. Fill it in only when WooCommerce does not provide it."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:461
-msgid "Submissions"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:467
-msgid "Search engine verification"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:471
-msgid "Bing Webmaster Tools code"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:473
-msgid "The msvalidate.01 content value: 32 uppercase hexadecimal characters."
+#: includes/Admin/SettingsPage.php:465
+msgid "Decide which AI bots may read your site and let search engines learn about changes right away."
 msgstr ""
 
 #: includes/Admin/SettingsPage.php:477
-msgid "Google Search Console code"
+msgid "What Aktio Connector does on this site and what is still worth filling in."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:479
-msgid "The google-site-verification content value. Added only when no SEO plugin or Site Kit provides it."
+#: includes/Admin/SettingsPage.php:483
+msgid "How often AI bots read your site and how many people come to it from AI assistants and AI search."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:488
-msgid "Cache"
+#: includes/Admin/SettingsPage.php:502
+msgid "Overview"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:491
-#: includes/Admin/SettingsPage.php:493
-msgid "Detected cache plugin"
+#: includes/Admin/SettingsPage.php:503
+msgid "Business"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:491
-msgid "No supported cache plugin detected."
+#: includes/Admin/SettingsPage.php:504
+#: includes/Admin/SettingsPage.php:983
+msgid "SEO"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:495
-msgid "Last cache clearing"
+#: includes/Admin/SettingsPage.php:505
+msgid "Store"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:498
-msgid "Clear the cache"
+#: includes/Admin/SettingsPage.php:506
+msgid "Bots & indexing"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:499
-msgid "Clear now"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:500
-msgid "The cache is cleared automatically after saving these settings."
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:508
+#: includes/Admin/SettingsPage.php:507
+#: includes/Admin/SettingsPage.php:1247
 msgid "AI visibility"
 msgstr ""
 
+#: includes/Admin/SettingsPage.php:508
+msgid "Tools"
+msgstr ""
+
 #: includes/Admin/SettingsPage.php:509
-msgid "Last 30 days. Bot visits are counted by PHP, so pages served from a page cache or CDN are not counted: the numbers are a lower bound when caching is on."
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:510
-msgid "AI bot visits"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:510
-msgid "Bot"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:511
-msgid "Visits from AI search"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:511
-msgid "Source"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:513
-msgid "Top landing pages from AI"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:515
-#: includes/Admin/SettingsPage.php:529
-msgid "No data yet."
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:518
-msgid "Page"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:518
-#: includes/Admin/SettingsPage.php:532
-msgid "Visits"
+#: includes/Admin/SettingsPage.php:1343
+msgid "About Aktio"
 msgstr ""
 
 #: includes/Admin/SettingsPage.php:552
+msgid "Makes your site easy to read for search engines and AI assistants: structured data, basic SEO, llms.txt and AI bot rules."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:554
+#: includes/Admin/SettingsPage.php:824
+#: includes/Admin/SettingsPage.php:1335
+msgid "(opens in a new tab)"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:574
+msgid "Aktio Connector settings"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:617
+msgid "You have unsaved changes."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:617
+msgid "You have unsaved changes. Leave the page anyway?"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:618
+msgid "Save changes"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:637
+msgid "The sitemap was submitted to IndexNow."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:638
+msgid "Cache cleared."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:639
+msgid "No supported cache plugin was found, nothing to clear."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:656
 msgid "Settings were not saved. Fix the following fields:"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:566
-msgid "Merchant"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:568
-msgid "Merchant fields work with a WooCommerce store."
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:571
-msgid "Used when they cannot be read from WooCommerce. You declare this data to Google — enter it in line with your store terms."
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:576
-msgid "Default brand"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:578
-msgid "Used for products without their own brand. Empty means no default brand."
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:582
-msgid "Return policy"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:584
-msgid "Declare a return policy"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:584
-msgid "Add the return policy to product offers"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:585
-msgid "Return window (days)"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:585
-msgid "0 means returns are not accepted."
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:588
-msgid "Return costs"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:594
-msgid "Paid by the customer"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:595
-msgid "Free returns"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:599
-#: includes/Admin/SettingsPage.php:619
-msgid "Two-letter ISO country code, for example PL. Leave empty to use the store country. Turn the checkbox off to stop declaring this data."
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:602
-msgid "Return method"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:608
-msgid "By mail"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:609
-msgid "In store"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:610
-msgid "By mail or in store"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:616
-msgid "Fallback shipping"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:618
-msgid "Declare fallback shipping"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:618
-msgid "Add shipping details when WooCommerce zones do not provide them"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:619
-msgid "Destination country"
-msgstr ""
-
-#. translators: %s: shop currency code, e.g. PLN
-#: includes/Admin/SettingsPage.php:623
+#. translators: %s: settings tab name
+#: includes/Admin/SettingsPage.php:662
 #, php-format
-msgid "Shipping cost (%s)"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:625
-msgid "Amount in the shop currency, up to 2 decimal places, for example 12.50. 0.00 means free shipping."
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:627
-msgid "Handling time (days)"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:627
-msgid "From – to, 0 to 30 days."
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:628
-msgid "Delivery time (days)"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:628
-msgid "From – to, 0 to 60 days."
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:678
-msgid "Content schema"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:679
-msgid "Product schema"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:680
-msgid "robots.txt"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:681
-msgid "llms.txt"
+msgid "Go to %s"
 msgstr ""
 
 #: includes/Admin/SettingsPage.php:682
-msgid "Page title"
+msgid "The site title is empty."
 msgstr ""
 
 #: includes/Admin/SettingsPage.php:683
-msgid "Meta description"
-msgstr ""
-
-#: includes/Admin/SettingsPage.php:684
-msgid "Open Graph"
+msgid "Search results, browser tabs and link previews show the site title. Enter your business name in Settings → General."
 msgstr ""
 
 #: includes/Admin/SettingsPage.php:685
+#: includes/Admin/SettingsPage.php:694
+msgid "Open General settings"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:691
+msgid "The tagline is the WordPress default."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:692
+msgid "It can end up as the description of your home page. Replace it with one sentence about what you do, or clear it."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:699
+msgid "Search engines are asked not to index this site."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:700
+msgid "While this is on, the site stays out of search results and AI answers, llms.txt is not served and IndexNow sends nothing. Change it in Settings → Reading."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:702
+msgid "Open Reading settings"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:707
+msgid "There is no logo."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:708
+msgid "Google and AI assistants show the logo next to your business name. Add it on the Business tab or as the site logo in your theme."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:710
+msgid "Add a logo"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:716
+msgid "There is no business description."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:717
+msgid "Two or three sentences about what you do go into llms.txt and schema.org. AI assistants read them first."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:719
+msgid "Write a description"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:726
+msgid "The local business has no address."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:727
+msgid "Google requires an address for a local business. Enter it on the Business tab, or change the type to \"Company or organization\" if customers do not visit you."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:729
+msgid "Enter the address"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:734
+msgid "To do"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:736
+msgid "Everything important is filled in. Search engines and AI assistants have what they need."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:755
+msgid "Content schema"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:756
+msgid "Product schema"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:757
+msgid "robots.txt"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:758
+msgid "llms.txt"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:759
+msgid "Page title"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:760
+msgid "Meta description"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:761
+msgid "Open Graph"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:762
 msgid "X (Twitter) cards"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:686
+#: includes/Admin/SettingsPage.php:763
 msgid "Robots meta"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:690
+#: includes/Admin/SettingsPage.php:766
+msgid "Active"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:767
+msgid "Elsewhere"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:768
+msgid "Off"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:772
 msgid "Feature status"
 msgstr ""
 
+#: includes/Admin/SettingsPage.php:772
+msgid "Aktio Connector never duplicates what another SEO plugin or a file on the server already provides."
+msgstr ""
+
 #. translators: %s: feature name, e.g. robots.txt
-#: includes/Admin/SettingsPage.php:698
+#: includes/Admin/SettingsPage.php:781
 #, php-format
 msgid "%s comes from a physical file in the site directory — Aktio Connector does not duplicate it."
 msgstr ""
 
 #. translators: 1: feature name, 2: plugin name
-#: includes/Admin/SettingsPage.php:701
+#: includes/Admin/SettingsPage.php:784
 #, php-format
 msgid "%1$s is provided by %2$s — Aktio Connector does not duplicate it."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:704
+#: includes/Admin/SettingsPage.php:787
 msgid "Unavailable (requires WooCommerce)."
 msgstr ""
 
 #. translators: %s: SEO plugin name
-#: includes/Admin/SettingsPage.php:707
+#: includes/Admin/SettingsPage.php:790
 #, php-format
 msgid "Aktio Connector adds AI-bot rules to the robots.txt generated by %s."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:709
+#: includes/Admin/SettingsPage.php:792
 msgid "Active — provided by Aktio Connector."
 msgstr ""
 
 #. translators: %s: list of SEO plugin names
-#: includes/Admin/SettingsPage.php:719
+#: includes/Admin/SettingsPage.php:802
 #, php-format
 msgid "Detected active SEO plugins: %s."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:726
+#: includes/Admin/SettingsPage.php:811
+msgid "Rules for search engine and AI bots."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:814
+msgid "A short summary of the site written for AI assistants."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:818
+msgid "XML sitemap"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:818
+msgid "The list of addresses search engines should visit."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:821
+msgid "Check what bots see"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:836
+msgid "Basic details"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:836
+msgid "The basics shown with your name in search results and AI answers."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:840
+msgid "Company name"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:842
+msgid "Your business or organization name. Empty means the site title."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:844
+#: includes/Admin/SettingsPage.php:845
+msgid "Type"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:847
+msgid "Company or organization"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:847
+msgid "An online shop, a service company, an association. Customers do not visit you at a fixed place."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:848
+msgid "Local business"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:848
+msgid "A place customers visit: a shop, farm, office or workshop. Adds the address, opening hours and location."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:857
+msgid "Logo"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:859
+msgid "Choose the logo"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:860
+msgid "A square image, at least 112 × 112 px. Empty means the site logo from your theme."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:864
+msgid "Description"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:866
+msgid "Two or three sentences about what you do and for whom, up to 300 characters. AI assistants read it first."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:868
+msgid "Phone"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:868
+msgid "With the country code, for example +48 600 000 000."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:869
+msgid "Email"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:873
+msgid "Address"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:873
+msgid "Required for a local business. For an online-only company, it is optional."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:875
+msgid "Street and number"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:876
+msgid "Postal code"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:877
+msgid "City"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:879
+#: includes/Admin/SettingsPage.php:881
+#: includes/Admin/SettingsPage.php:1099
+msgid "Country"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:879
+msgid "— Choose a country —"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:881
+msgid "A two-letter country code, for example PL or DE."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:886
+msgid "Opening hours and location"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:886
+msgid "Shown only for a local business. Google uses them in Maps and in answers like \"is it open now\"."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:892
+msgid "Latitude"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:897
+msgid "Longitude"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:899
+msgid "In Google Maps, right-click your place: the two numbers at the top of the menu are the latitude and longitude, for example 54.4386 and 16.9876. Leave both empty to skip."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:905
+msgid "Extended company data"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:905
+msgid "Optional details that help AI assistants answer questions about your business."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:907
+msgid "Founding date"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:908
+msgid "Area served"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:908
+msgid "Where you work or deliver, for example \"Poland\" or \"Pomerania\"."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:909
+msgid "Customer service phone"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:910
+msgid "Customer service email"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:911
+#: includes/Admin/SettingsPage.php:912
+msgid "Customer service languages"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:928
+msgid "Up to 5 languages in which customers can contact you."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:931
+msgid "Social profiles"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:933
+msgid "Addresses of your profiles (Facebook, Instagram, LinkedIn, Google Business Profile), one per line, up to 10. They confirm that the profiles belong to you."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:946
+msgid "Opening hours"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:955
+msgid "Add opening hours"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:956
+msgid "One row per group of days with the same hours, for example Monday–Friday 9:00–17:00 and Saturday 10:00–14:00. Days without a row are treated as closed."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:965
+msgid "Days and hours"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:972
+msgid "Opens"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:974
+msgid "Closes"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:975
+msgid "Remove"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:987
+msgid "Home page description"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:989
+msgid "Meta description of the home page, up to 160 characters. Used only when no SEO plugin provides it."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:993
+msgid "Default social image"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:995
+msgid "Choose the default social image"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:996
+msgid "Shown when a page or product has no image of its own. Must be an https:// address; leave empty for none."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1004
+msgid "Content language"
+msgstr ""
+
+#. translators: 1: detected language code, 2: configured content language
+#: includes/Admin/SettingsPage.php:1009
+#, php-format
+msgid "Your content looks like it is written in \"%1$s\", but the content language is set to \"%2$s\". Check the setting below."
+msgstr ""
+
+#. translators: %s: site language code, e.g. pl-PL
+#: includes/Admin/SettingsPage.php:1017
+#, php-format
+msgid "Same as the site language (%s)"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1028
+msgid "Language of the site content"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1030
+msgid "The language your pages are written in. It sets the lang attribute, og:locale, schema inLanguage and llms.txt; the admin panel stays in your language. Change it only when the content is in a different language than the admin panel."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1038
+msgid "Search engine verification"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1038
+msgid "Confirms you own the site, so you can see its statistics in Bing Webmaster Tools and Google Search Console."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1042
+msgid "Bing Webmaster Tools code"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1044
+msgid "The msvalidate.01 content value: 32 uppercase hexadecimal characters."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1048
+msgid "Google Search Console code"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1050
+msgid "The google-site-verification content value. Added only when no SEO plugin or Site Kit provides it."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1071
+msgid "Merchant"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1071
+msgid "Used when they cannot be read from WooCommerce. You declare this data to Google — enter it in line with your store terms."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1075
+msgid "Default brand"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1077
+msgid "Used for products without their own brand. Empty means no default brand."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1082
+msgid "Return policy"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1082
+msgid "Google shows the return window and costs next to your products."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1084
+msgid "Declare a return policy"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1084
+msgid "Add the return policy to product offers"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1085
+msgid "Return window (days)"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1085
+msgid "0 means returns are not accepted. Consumers in the EU have at least 14 days."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1088
+msgid "Return costs"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1094
+msgid "Paid by the customer"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1095
+msgid "Free returns"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1099
+msgid "The country where returns are accepted. To stop declaring this data, clear the checkbox above."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1102
+msgid "Return method"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1108
+msgid "By mail"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1109
+msgid "In store"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1110
+msgid "By mail or in store"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1117
+msgid "Fallback shipping"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1117
+msgid "Used for products when WooCommerce shipping zones do not give a cost Google can read."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1119
+msgid "Declare fallback shipping"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1119
+msgid "Add shipping details when WooCommerce zones do not provide them"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1120
+msgid "Destination country"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1120
+msgid "The country you ship to. To stop declaring this data, clear the checkbox above."
+msgstr ""
+
+#. translators: %s: shop currency code, e.g. PLN
+#: includes/Admin/SettingsPage.php:1124
+#, php-format
+msgid "Shipping cost (%s)"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1126
+msgid "Amount in the shop currency, up to 2 decimal places, for example 12.50. 0.00 means free shipping."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1128
+msgid "Handling time (days)"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1128
+msgid "From – to, 0 to 30 days: how long you need to pack and hand over an order."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1129
+msgid "Delivery time (days)"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1129
+msgid "From – to, 0 to 60 days: how long the carrier takes."
+msgstr ""
+
+#. translators: %s: store country name and code, e.g. Poland (PL)
+#: includes/Admin/SettingsPage.php:1146
+#, php-format
+msgid "Store country: %s"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1174
+msgid "Collects content to train ChatGPT models. Blocking it does not remove you from ChatGPT search."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1175
+msgid "Indexes pages for ChatGPT search, so ChatGPT can cite and link to you. Blocking it removes you from those answers."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1176
+msgid "Collects content to train Claude models."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1177
+msgid "Indexes pages for Perplexity answers, which link back to the sources."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1178
+msgid "Lets Gemini and Google AI training use your content. It does not affect Google Search or AI Overviews."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1179
+msgid "Lets Apple Intelligence training use your content. It does not affect Siri or Spotlight."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1181
+msgid "AI bots in robots.txt"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1181
+msgid "Allowed bots can read your site; blocked ones get a Disallow rule in robots.txt. Well-behaved bots respect it. Keep search bots allowed if you want AI assistants to recommend you."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1197
+msgid "Allowed"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1198
+msgid "Blocked"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1207
+msgid "IndexNow"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1207
+msgid "Tells Bing and other IndexNow search engines about new and changed pages within minutes instead of days. Bing results also feed Copilot and other AI assistants."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1211
+msgid "Report changes"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1212
+msgid "Tell search engines about new and changed pages"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1213
+msgid "IndexNow reports the addresses of new and changed pages to Bing and other IndexNow search engines. It does not send page content or visitor data. Nothing is sent while the site is hidden from search engines or for pages marked noindex."
+msgstr ""
+
+#. translators: %s: date and time of the last successful submission, or a dash
+#: includes/Admin/SettingsPage.php:1219
+#, php-format
+msgid "Last successful submission: %s"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1223
+#: includes/Admin/SettingsPage.php:1314
+msgid "Date (UTC)"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1223
+msgid "Addresses"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1223
+msgid "Response code"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1233
+msgid "No submissions yet."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1235
+msgid "Submit the whole sitemap"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1236
+msgid "One-off submission of all public pages. Available once every 24 hours and only when IndexNow is enabled."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1237
+msgid "Submissions"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1247
+msgid "Last 30 days. Bot visits are counted by PHP, so pages served from a page cache or CDN are not counted: the numbers are a lower bound when caching is on."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1249
+msgid "AI bot visits"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1249
+msgid "Bot"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1251
+msgid "Visits from AI search"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1251
+msgid "Source"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1254
+msgid "Top landing pages from AI"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1256
+#: includes/Admin/SettingsPage.php:1272
+msgid "No data yet."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1260
+msgid "Page"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1260
+#: includes/Admin/SettingsPage.php:1275
+msgid "Visits"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1287
+msgid "Cache"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1287
+msgid "A caching plugin keeps ready copies of pages. After changes here they have to be refreshed, otherwise visitors and bots see the old version."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1290
+#: includes/Admin/SettingsPage.php:1292
+msgid "Detected cache plugin"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1290
+msgid "No supported cache plugin detected."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1294
+msgid "Last cache clearing"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1297
+msgid "Clear the cache"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1298
+msgid "Clear now"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1299
+msgid "The cache is cleared automatically after saving these settings."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1307
 msgid "Update log"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:728
+#: includes/Admin/SettingsPage.php:1307
+msgid "Updates of WordPress, plugins and themes applied through Aktio Connector (for example by the Aktio agent)."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1309
 msgid "No entries."
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:732
+#: includes/Admin/SettingsPage.php:1314
 msgid "Item"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:732
+#: includes/Admin/SettingsPage.php:1314
 msgid "Version"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:732
+#: includes/Admin/SettingsPage.php:1314
 msgid "Result"
 msgstr ""
 
-#: includes/Admin/SettingsPage.php:732
+#: includes/Admin/SettingsPage.php:1314
 msgid "By"
 msgstr ""
 
-#: includes/Catalog.php:165
+#: includes/Admin/SettingsPage.php:1344
+msgid "Aktio is a platform where an AI agent takes routine work off your hands: it looks after your website and online store, publishes content, creates tasks and reminds you of what matters. In Polish, also by voice."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1348
+msgid "AI agent for WordPress"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1348
+msgid "Knows the numbers of your WooCommerce store, writes content, fills in missing image ALT texts, checks product data, applies updates and reports changes to IndexNow. It saves nothing until you say yes."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1349
+msgid "How the agent works"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1350
+msgid "Visibility in AI"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1350
+msgid "Checks whether ChatGPT, Gemini, Perplexity and Google AI Overviews mention your brand and cite your pages, with history and comparisons over time."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1351
+msgid "See AI visibility monitoring"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1354
+msgid "Visit aktioapp.com"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1357
+msgid "How the plugin works with Aktio"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1358
+msgid "Connection to Aktio: this plugin works on its own; Aktio uses it through an application password."
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1359
+msgid "The plugin never connects to Aktio by itself and sends it nothing. Aktio reaches your site only after you create an application password for it (Users → Profile → Application passwords), and you can revoke that password at any time."
+msgstr ""
+
+#. translators: %s: plugin version
+#: includes/Admin/SettingsPage.php:1362
+#, php-format
+msgid "Aktio Connector %s · free, GPLv2 or later"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1389
+msgid "Use this image"
+msgstr ""
+
+#: includes/Admin/SettingsPage.php:1389
+msgid "Choose image"
+msgstr ""
+
+#: includes/Catalog.php:97
+msgid "This site has no multilingual plugin (WPML or Polylang), so only the default language is available."
+msgstr ""
+
+#: includes/Catalog.php:107
+msgid "Unknown language code."
+msgstr ""
+
+#: includes/Catalog.php:225
 msgid "The items field (non-empty list) is required."
 msgstr ""
 
 #. translators: %d: maximum number of items per call
-#: includes/Catalog.php:169
+#: includes/Catalog.php:229
 #, php-format
 msgid "At most %d items per call."
 msgstr ""
 
-#: includes/IndexNow.php:60
+#: includes/IndexNow.php:109
 msgid "Every 5 minutes"
 msgstr ""
 
-#: includes/IndexNow.php:254
+#: includes/IndexNow.php:311
 msgid "IndexNow is disabled or the site is not public."
 msgstr ""
 
-#: includes/IndexNow.php:262
+#: includes/IndexNow.php:321
 msgid "The sitemap can be submitted once every 24 hours."
 msgstr ""
 
-#: includes/Metrics.php:176
+#: includes/Metrics.php:202
 msgid "Too many requests."
 msgstr ""
 
 #: includes/Rest.php:161
-#: includes/Rest.php:340
+#: includes/Rest.php:348
 msgid "You are not allowed to perform this operation."
 msgstr ""
 
-#: includes/Rest.php:241
+#: includes/Rest.php:208
+msgid "The urls field must be a string or a list of strings."
+msgstr ""
+
+#: includes/Rest.php:249
 msgid "The request body must be a JSON object."
 msgstr ""
 
 #. translators: %s: field name
-#: includes/Rest.php:246
+#: includes/Rest.php:254
 #, php-format
 msgid "The %s field must be an object."
 msgstr ""
 
-#: includes/Rest.php:285
-#: includes/Rest.php:310
+#: includes/Rest.php:293
+#: includes/Rest.php:318
 msgid "The item field (string) is required."
 msgstr ""
 
-#: includes/Rest.php:304
+#: includes/Rest.php:312
 msgid "Invalid types for the item/enabled/core_level fields."
 msgstr ""
 
-#: includes/Rest.php:335
+#: includes/Rest.php:343
 #: includes/Updates.php:467
 msgid "type must be one of: core, plugin, theme."
 msgstr ""
@@ -628,22 +1052,26 @@ msgstr ""
 msgid "Anonymous"
 msgstr ""
 
-#: includes/Seo/Fields.php:179
-#: assets/aktio-seo-panel.js:62
+#: includes/Seo/Fields.php:192
+#: includes/Seo/Fields.php:257
 msgid "SEO (Aktio)"
 msgstr ""
 
-#: includes/Seo/Fields.php:185
-#: assets/aktio-seo-panel.js:42
+#: includes/Seo/Fields.php:198
+#: includes/Seo/Fields.php:304
+#: includes/Seo/Fields.php:343
+#: includes/Seo/Fields.php:363
 msgid "SEO title"
 msgstr ""
 
-#: includes/Seo/Fields.php:189
-#: assets/aktio-seo-panel.js:54
+#: includes/Seo/Fields.php:202
+#: includes/Seo/Fields.php:307
+#: includes/Seo/Fields.php:347
+#: includes/Seo/Fields.php:367
 msgid "SEO description"
 msgstr ""
 
-#: includes/Seo/Fields.php:282
+#: includes/Seo/Fields.php:446
 msgid "SEO titles and descriptions are managed by another SEO plugin."
 msgstr ""
 
@@ -783,22 +1211,6 @@ msgstr ""
 
 #: includes/Updates.php:649
 msgid "No such item was found on this site."
-msgstr ""
-
-#: blocks/faq/index.js:46
-msgid "Question"
-msgstr ""
-
-#: blocks/faq/index.js:53
-msgid "Answer"
-msgstr ""
-
-#: blocks/faq/index.js:68
-msgid "Remove"
-msgstr ""
-
-#: blocks/faq/index.js:75
-msgid "Add question"
 msgstr ""
 
 #: blocks/faq/block.json
