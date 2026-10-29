@@ -111,6 +111,7 @@ No cookies, no visitor identifiers and no stored IP addresses. See "Privacy of A
 == Changelog ==
 
 = Unreleased =
+* New: settings screen in tabs (Overview with a to-do list, Business, SEO, Store, Bots & indexing, AI visibility, Tools, About Aktio), pick lists instead of typed codes, opening hours and location fields, AI bots as switches with descriptions, Aktio logo.
 * Fix: an empty WordPress site title falls back to the company name (title, Open Graph, schema.org, llms.txt) and the default WordPress tagline is ignored.
 * Fix: meta description, Open Graph and canonical URL on the WooCommerce shop page; canonical URL on category and tag archives.
 * Fix: sitemap without MailPoet system pages and with the users sitemap removed for single-author sites (pages no longer count); `/llms.txt` without a trailing-slash redirect.
