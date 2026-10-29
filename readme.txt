@@ -4,7 +4,7 @@ Tags: seo, schema, llms.txt, ai, woocommerce
 Requires at least: 6.2
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 0.2.0
+Stable tag: 0.2.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -24,7 +24,7 @@ Aktio Connector makes a WordPress site easier for search engines and AI bots to 
 * **AI visit measurement (new in 0.2):** counts visits of AI bots and visits coming from AI assistants and AI search (ChatGPT, Perplexity, Gemini, Copilot, Claude), without cookies. See the privacy section below.
 * **FAQ block and shortcode (new in 0.2):** the `aktio/faq` block and the `[aktio_faq]` shortcode (`Q: ...` / `A: ...` line by line) render questions and answers and add FAQPage schema.
 * **Catalog scan for the Aktio agent (new in 0.2):** read-only REST routes list products (brands, images, missing ALT texts, description lengths) and images without ALT text, and a route to set ALT texts in bulk (up to 50 per call, with the previous value returned for every item). Available to authenticated users with the right capabilities.
-* **Multilingual awareness (unreleased):** detects WPML and Polylang and reports the active languages (`languages`, `multilingual` in `aktio/v1/status`). The catalog scan returns the language of each product and accepts `lang`; media without ALT text carry a `lang` too; IndexNow submissions are reported per language and per URL. Without a multilingual plugin the site is a single language (the site locale).
+* **Multilingual awareness (new in 0.2.1):** detects WPML and Polylang and reports the active languages (`languages`, `multilingual` in `aktio/v1/status`). The catalog scan returns the language of each product and accepts `lang`; media without ALT text carry a `lang` too; IndexNow submissions are reported per language and per URL. Without a multilingual plugin the site is a single language (the site locale).
 * **robots.txt for AI bots:** appends a block for GPTBot, OAI-SearchBot, ClaudeBot, PerplexityBot, Google-Extended and Applebot-Extended at the end of robots.txt. Bots are allowed by default and you can block each one in the settings.
 * **llms.txt:** serves `/llms.txt` with a short description of the business, a list of pages, recent posts and products. Password-protected and unpublished content is left out.
 * **Site Health over REST:** Site Health test results and environment information available to logged-in administrators through `aktio/v1/health`.
@@ -110,7 +110,7 @@ No cookies, no visitor identifiers and no stored IP addresses. See "Privacy of A
 
 == Changelog ==
 
-= Unreleased =
+= 0.2.2 =
 * New: settings screen in tabs (Overview with a to-do list, Business, SEO, Store, Bots & indexing, AI visibility, Tools, About Aktio), pick lists instead of typed codes, opening hours and location fields, AI bots as switches with descriptions, Aktio logo.
 * Fix: an empty WordPress site title falls back to the company name (title, Open Graph, schema.org, llms.txt) and the default WordPress tagline is ignored.
 * Fix: meta description, Open Graph and canonical URL on the WooCommerce shop page; canonical URL on category and tag archives.

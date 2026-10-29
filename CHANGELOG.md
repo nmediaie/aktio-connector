@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.2 — 2026-10-29
 
 ### Changed
 - Settings screen rebuilt into tabs: Overview, Business, SEO, Store (with WooCommerce), Bots & indexing, AI visibility, Tools and About Aktio. Tabs work without JavaScript (`?tab=` links); with it they switch in place, support arrow keys and stay selected after saving. A validation error opens the tab with the field.
