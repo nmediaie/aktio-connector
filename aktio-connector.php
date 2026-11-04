@@ -34,6 +34,7 @@ require_once __DIR__ . '/includes/Seo/Head.php';
 require_once __DIR__ . '/includes/CachePurge.php';
 require_once __DIR__ . '/includes/IndexNow.php';
 require_once __DIR__ . '/includes/Metrics.php';
+require_once __DIR__ . '/includes/Affiliates/Store.php';
 require_once __DIR__ . '/includes/Faq.php';
 require_once __DIR__ . '/includes/Catalog.php';
 require_once __DIR__ . '/includes/Crawlers.php';
@@ -50,12 +51,23 @@ require_once __DIR__ . '/includes/Admin/SettingsPage.php';
 \AktioConnector\CachePurge::register();
 \AktioConnector\IndexNow::register();
 \AktioConnector\Metrics::register();
+\AktioConnector\Affiliates\Store::register();
 \AktioConnector\Faq::register();
 \AktioConnector\Crawlers::register();
 \AktioConnector\Updates::register();
 if ( is_admin() ) {
 	\AktioConnector\Admin\SettingsPage::register();
 }
+
+// Zamówienia WooCommerce przez WC_Order (HPOS): wtyczka deklaruje zgodność z własnymi tabelami zamówień.
+add_action(
+	'before_woocommerce_init',
+	function () {
+		if ( class_exists( '\\Automattic\\WooCommerce\\Utilities\\FeaturesUtil' ) ) {
+			\Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility( 'custom_order_tables', AKTIO_CONNECTOR_FILE, true );
+		}
+	}
+);
 
 add_action(
 	'init',
@@ -67,7 +79,9 @@ add_action(
 // IndexNow przed Crawlers: flush reguł rewrite (Crawlers::activate) ma już znać regułę klucza.
 register_activation_hook( __FILE__, array( '\\AktioConnector\\IndexNow', 'activate' ) );
 register_activation_hook( __FILE__, array( '\\AktioConnector\\Metrics', 'activate' ) );
+register_activation_hook( __FILE__, array( '\\AktioConnector\\Affiliates\\Store', 'activate' ) );
 register_activation_hook( __FILE__, array( '\\AktioConnector\\Crawlers', 'activate' ) );
 register_deactivation_hook( __FILE__, array( '\\AktioConnector\\IndexNow', 'deactivate' ) );
 register_deactivation_hook( __FILE__, array( '\\AktioConnector\\Metrics', 'deactivate' ) );
+register_deactivation_hook( __FILE__, array( '\\AktioConnector\\Affiliates\\Store', 'deactivate' ) );
 register_deactivation_hook( __FILE__, array( '\\AktioConnector\\Crawlers', 'deactivate' ) );
