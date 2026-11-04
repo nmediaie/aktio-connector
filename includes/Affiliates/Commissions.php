@@ -20,6 +20,9 @@ class Commissions {
 	const STATUSES = array( 'pending', 'approved', 'rejected', 'paid' );
 	const REASONS  = array( '', 'order_status', 'self_referral', 'manual' );
 
+	/** Akcje właściciela dla apply(). */
+	const ACTIONS = array( 'approve', 'reject', 'paid', 'settle_clawback' );
+
 	/** Statusy zamówienia, przy których prowizja nie może iść dalej. */
 	private const ORDER_REJECTING = array( 'refunded', 'cancelled', 'failed' );
 
@@ -326,6 +329,136 @@ class Commissions {
 		} catch ( \Throwable $e ) {
 			self::log_error( 'daily cleanup', 0, $e );
 		}
+	}
+
+	// ------------------------------------------------------------------ Akcje właściciela
+
+	/** Numer przelewu albo dokumentu: przycięty tekst, 1–100 znaków; null, gdy pusty lub za długi. */
+	public static function clean_ref( string $ref ): ?string {
+		$ref = trim( sanitize_text_field( $ref ) );
+		$len = function_exists( 'mb_strlen' ) ? mb_strlen( $ref ) : strlen( $ref );
+		return '' === $ref || $len > 100 ? null : $ref;
+	}
+
+	/**
+	 * Akcja właściciela na wierszach. Wynik wiersza: ok | skipped | invalid_state | order_refunded | order_missing.
+	 * `skipped`: wiersza nie ma, zmienił się w międzyczasie albo przeliczenie się nie udało (reszta paczki idzie dalej).
+	 * Zmiany stanu tylko przez transition(), więc powtórne `paid` niczego nie zmienia.
+	 *
+	 * @return array{results:array<int,string>}
+	 */
+	public static function apply( string $action, array $ids, string $ref = '' ): array {
+		$ids     = array_slice( array_values( array_unique( array_filter( array_map( 'intval', $ids ), static fn( $i ) => $i > 0 ) ) ), 0, Store::MAX_PER_PAGE );
+		$results = array();
+		$clean   = self::clean_ref( $ref );
+		$needs   = in_array( $action, array( 'paid', 'settle_clawback' ), true );
+		if ( ! in_array( $action, self::ACTIONS, true ) || ( $needs && null === $clean ) ) {
+			return array( 'results' => array_fill_keys( $ids, 'invalid_state' ) );
+		}
+		$rows = array();
+		foreach ( Store::get_commissions_by_ids( $ids ) as $row ) {
+			$rows[ $row['id'] ] = $row;
+		}
+		foreach ( $ids as $id ) {
+			if ( ! isset( $rows[ $id ] ) ) {
+				$results[ $id ] = 'skipped';
+				continue;
+			}
+			try {
+				$results[ $id ] = self::apply_one( $action, $rows[ $id ], (string) $clean );
+			} catch ( \Throwable $e ) {
+				self::log_error( 'action ' . $action, $rows[ $id ]['order_id'], $e );
+				$results[ $id ] = 'skipped';
+			}
+		}
+		return array( 'results' => $results );
+	}
+
+	private static function apply_one( string $action, array $row, string $ref ): string {
+		switch ( $action ) {
+			case 'reject':
+				if ( ! in_array( $row['status'], array( 'pending', 'approved' ), true ) ) {
+					return 'invalid_state';
+				}
+				return self::transition( $row, 'rejected', 'manual' ) ? 'ok' : 'skipped';
+
+			case 'approve':
+				if ( 'pending' !== $row['status'] ) {
+					return 'invalid_state';
+				}
+				return self::apply_checked( $row, 'pending', 'approved', static fn( array $fresh, \WC_Order $order ) => $order->has_status( 'completed' ) ? array() : null );
+
+			case 'paid':
+				if ( 'paid' === $row['status'] ) {
+					return 'skipped'; // Powtórzenie niczego nie zmienia: numer przelewu i data zostają z pierwszej wypłaty.
+				}
+				if ( 'approved' !== $row['status'] ) {
+					return 'invalid_state';
+				}
+				return self::apply_checked(
+					$row,
+					'approved',
+					'paid',
+					static fn( array $fresh ) => array(
+						'commission_paid' => $fresh['commission'],
+						'paid_at'         => current_time( 'mysql', true ),
+						'payout_ref'      => $ref,
+					)
+				);
+
+			default: // settle_clawback.
+				return self::settle( $row, $ref );
+		}
+	}
+
+	/**
+	 * Wspólny przebieg `approve` i `paid`: aktualne zamówienie decyduje pierwsze, potem wiersz jest czytany ponownie
+	 * (przeliczenie mogło zmienić kwoty) i zapisywany bramką stanu. `$fields` zwraca pola zapisu albo null, gdy
+	 * zamówienie nie spełnia warunku (invalid_state).
+	 */
+	private static function apply_checked( array $row, string $from, string $to, callable $fields ): string {
+		$order  = self::order( $row['order_id'] );
+		$result = self::reconcile( $row, $order );
+		if ( 'ok' !== $result ) {
+			return 'rejected' === $result ? 'order_refunded' : $result;
+		}
+		$fresh = self::fresh( $row['id'] );
+		if ( null === $fresh || $from !== $fresh['status'] ) {
+			return 'skipped';
+		}
+		$extra = $fields( $fresh, $order );
+		if ( null === $extra ) {
+			return 'invalid_state';
+		}
+		return self::transition( $fresh, $to, '', $extra ) ? 'ok' : 'skipped';
+	}
+
+	private static function settle( array $row, string $ref ): string {
+		if ( 'paid' !== $row['status'] ) {
+			return 'invalid_state';
+		}
+		$order = self::order( $row['order_id'] );
+		if ( null !== $order ) {
+			self::reconcile( $row, $order ); // Zwrot, który minął hooki, trafia do `clawback` przed rozliczeniem.
+		}
+		$fresh = self::fresh( $row['id'] );
+		if ( null === $fresh || 'paid' !== $fresh['status'] ) {
+			return 'skipped';
+		}
+		if ( 0.0 === (float) self::clawback_balance( $fresh ) ) {
+			return 'invalid_state';
+		}
+		$fields = array(
+			'clawback_settled_amount' => $fresh['clawback'],
+			'clawback_settled_at'     => current_time( 'mysql', true ),
+			'clawback_ref'            => $ref,
+		);
+		return self::transition( $fresh, 'paid', $fresh['reason'], $fields ) ? 'ok' : 'skipped';
+	}
+
+	private static function fresh( int $id ): ?array {
+		$rows = Store::get_commissions_by_ids( array( $id ) );
+		return $rows[0] ?? null;
 	}
 
 	// --------------------------------------------------------------------- Pomocnicze

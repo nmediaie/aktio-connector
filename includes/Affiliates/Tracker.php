@@ -204,6 +204,75 @@ class Tracker {
 		return $header . '; HttpOnly; SameSite=Lax';
 	}
 
+	/**
+	 * Link partnera do podanej strony sklepu: ten adres z parametrem partnerskim (istniejący parametr jest
+	 * zastępowany, inne argumenty i kotwica zostają). Adres musi być http(s), bez danych logowania i ukośników
+	 * odwrotnych, na hoście sklepu (bez uwzględniania wiodącego `www.`) i pod ścieżką `home_url`.
+	 *
+	 * @return string|\WP_Error aktio_aff_url_outside_shop albo aktio_aff_invalid (zły kod).
+	 */
+	public static function link_for( string $url, string $code ) {
+		if ( 1 !== preg_match( '/^[a-z0-9-]{3,32}\z/', $code ) ) {
+			return new \WP_Error( 'aktio_aff_invalid', __( 'The affiliate code is not valid.', 'aktio-connector' ) );
+		}
+		$outside = new \WP_Error( 'aktio_aff_url_outside_shop', __( 'The address must point to a page of this shop.', 'aktio-connector' ), array( 'status' => 400 ) );
+
+		$url = trim( $url );
+		if ( '' === $url || 1 === preg_match( '/[\x00-\x20\x7f\\\\]/', $url ) ) {
+			return $outside;
+		}
+		$parts = wp_parse_url( $url );
+		$home  = wp_parse_url( home_url() );
+		if ( ! is_array( $parts ) || ! is_array( $home ) || isset( $parts['user'] ) || isset( $parts['pass'] ) ) {
+			return $outside;
+		}
+		$scheme = strtolower( (string) ( $parts['scheme'] ?? '' ) );
+		if ( ! in_array( $scheme, array( 'http', 'https' ), true ) || empty( $parts['host'] ) || empty( $home['host'] ) ) {
+			return $outside;
+		}
+		if ( self::bare_host( (string) $parts['host'] ) !== self::bare_host( (string) $home['host'] ) ) {
+			return $outside;
+		}
+		// Port wynika z adresu tylko wtedy, gdy ktoś go podał (adres sklepu lub sprawdzany); wtedy muszą się zgadzać.
+		if ( isset( $parts['port'] ) || isset( $home['port'] ) ) {
+			$default = 'https' === $scheme ? 443 : 80;
+			if ( (int) ( $parts['port'] ?? $default ) !== (int) ( $home['port'] ?? $default ) ) {
+				return $outside;
+			}
+		}
+
+		$path      = (string) ( $parts['path'] ?? '' );
+		$home_path = rtrim( (string) ( $home['path'] ?? '' ), '/' );
+		if ( '' !== $home_path ) {
+			if ( $path !== $home_path && 0 !== strpos( $path, $home_path . '/' ) ) {
+				return $outside;
+			}
+			if ( in_array( '..', explode( '/', $path ), true ) ) {
+				return $outside;
+			}
+		}
+
+		// Adres składamy ze zweryfikowanych części; zapytanie zostaje bajt w bajt poza zastępowanym parametrem.
+		$param = (string) Settings::get()['affiliates']['param'];
+		$args  = array();
+		foreach ( explode( '&', (string) ( $parts['query'] ?? '' ) ) as $pair ) {
+			if ( '' !== $pair && urldecode( explode( '=', $pair, 2 )[0] ) !== $param ) {
+				$args[] = $pair;
+			}
+		}
+		$args[] = rawurlencode( $param ) . '=' . $code;
+
+		return $scheme . '://' . $parts['host'] . ( isset( $parts['port'] ) ? ':' . $parts['port'] : '' )
+			. ( '' === $path ? '/' : $path )
+			. '?' . implode( '&', $args )
+			. ( isset( $parts['fragment'] ) ? '#' . $parts['fragment'] : '' );
+	}
+
+	private static function bare_host( string $host ): string {
+		$host = strtolower( rtrim( $host, '.' ) );
+		return 0 === strpos( $host, 'www.' ) ? substr( $host, 4 ) : $host;
+	}
+
 	/** Usuwa wygasłe transienty tej trasy (bez zewnętrznego cache obiektów zostają w wp_options). */
 	public static function purge_transients(): void {
 		global $wpdb;

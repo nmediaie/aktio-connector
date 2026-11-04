@@ -603,6 +603,93 @@ class Store {
 		);
 	}
 
+	// -------------------------------------------------------------------- Sumy
+
+	/**
+	 * Sumy prowizji wg partnera i waluty (grupowanie w SQL, waluty nigdy nie są sumowane razem):
+	 * partner => waluta => {pending, approved, paid, clawback_balance}, a pod kluczem 0 sumy wszystkich partnerów.
+	 * `paid` to wypłacone kwoty, `clawback_balance` to saldo potrąceń wierszy `paid`. Do tego liczba zamówień partnera.
+	 *
+	 * @return array{totals:array<int,array<string,array<string,string>>>,orders:array<int,int>}
+	 */
+	public static function commission_totals(): array {
+		global $wpdb;
+		$rows = $wpdb->get_results( 'SELECT affiliate_id, currency, status, COUNT(*) AS n, SUM(commission) AS commission, SUM(commission_paid) AS paid, SUM(clawback - clawback_settled_amount) AS balance FROM ' . self::commissions_table() . ' GROUP BY affiliate_id, currency, status', ARRAY_A ); // phpcs:ignore WordPress.DB
+		$sums   = array();
+		$orders = array();
+		foreach ( is_array( $rows ) ? $rows : array() as $row ) {
+			$id  = (int) $row['affiliate_id'];
+			$cur = (string) $row['currency'];
+			foreach ( array( $id, 0 ) as $key ) {
+				if ( ! isset( $sums[ $key ][ $cur ] ) ) {
+					$sums[ $key ][ $cur ] = array( 'pending' => 0.0, 'approved' => 0.0, 'paid' => 0.0, 'clawback_balance' => 0.0 );
+				}
+				if ( 'pending' === $row['status'] || 'approved' === $row['status'] ) {
+					$sums[ $key ][ $cur ][ $row['status'] ] += (float) $row['commission'];
+				} elseif ( 'paid' === $row['status'] ) {
+					$sums[ $key ][ $cur ]['paid']             += (float) $row['paid'];
+					$sums[ $key ][ $cur ]['clawback_balance'] += (float) $row['balance'];
+				}
+			}
+			$orders[ $id ] = ( $orders[ $id ] ?? 0 ) + (int) $row['n'];
+		}
+		foreach ( $sums as $key => $by_currency ) {
+			foreach ( $by_currency as $cur => $values ) {
+				$sums[ $key ][ $cur ] = array_map( array( Commissions::class, 'money' ), $values );
+			}
+		}
+		return array(
+			'totals' => $sums,
+			'orders' => $orders,
+		);
+	}
+
+	/** Kliknięcia z zachowanego okresu na partnera. */
+	public static function click_totals(): array {
+		global $wpdb;
+		$rows   = $wpdb->get_results( 'SELECT affiliate_id, SUM(`count`) AS n FROM ' . self::clicks_table() . ' GROUP BY affiliate_id', ARRAY_A ); // phpcs:ignore WordPress.DB
+		$totals = array();
+		foreach ( is_array( $rows ) ? $rows : array() as $row ) {
+			$totals[ (int) $row['affiliate_id'] ] = (int) $row['n'];
+		}
+		return $totals;
+	}
+
+	/**
+	 * Seria dzienna (UTC) z ostatnich $days dni (1–400), rosnąco: kliknięcia, zamówienia (wszystkie wiersze utworzone
+	 * tego dnia) i prowizje bez odrzuconych, osobno dla każdej waluty.
+	 *
+	 * @return array<int,array{day:string,clicks:int,orders:int,commissions:array<string,string>}>
+	 */
+	public static function report_series( int $days ): array {
+		global $wpdb;
+		$days   = max( 1, min( 400, $days ) );
+		$series = array();
+		for ( $i = $days - 1; $i >= 0; $i-- ) {
+			$series[ gmdate( 'Y-m-d', time() - $i * DAY_IN_SECONDS ) ] = array(
+				'day'         => gmdate( 'Y-m-d', time() - $i * DAY_IN_SECONDS ),
+				'clicks'      => 0,
+				'orders'      => 0,
+				'commissions' => array(),
+			);
+		}
+		$from   = (string) array_key_first( $series );
+		$clicks = $wpdb->get_results( $wpdb->prepare( 'SELECT day, SUM(`count`) AS n FROM ' . self::clicks_table() . ' WHERE day >= %s GROUP BY day', $from ), ARRAY_A ); // phpcs:ignore WordPress.DB
+		foreach ( is_array( $clicks ) ? $clicks : array() as $row ) {
+			if ( isset( $series[ $row['day'] ] ) ) {
+				$series[ $row['day'] ]['clicks'] = (int) $row['n'];
+			}
+		}
+		$orders = $wpdb->get_results( $wpdb->prepare( "SELECT DATE(created_at) AS day, currency, COUNT(*) AS n, SUM(CASE WHEN status <> 'rejected' THEN commission ELSE 0 END) AS commission FROM " . self::commissions_table() . ' WHERE created_at >= %s GROUP BY DATE(created_at), currency', $from . ' 00:00:00' ), ARRAY_A ); // phpcs:ignore WordPress.DB
+		foreach ( is_array( $orders ) ? $orders : array() as $row ) {
+			if ( isset( $series[ $row['day'] ] ) ) {
+				$series[ $row['day'] ]['orders']                              += (int) $row['n'];
+				$series[ $row['day'] ]['commissions'][ (string) $row['currency'] ] = Commissions::money( (float) $row['commission'] );
+			}
+		}
+		return array_values( $series );
+	}
+
 	/** Wiersze `pending` z terminem karencji do $now (GMT), po id większym niż $after_id, rosnąco. */
 	public static function due_commissions( string $now, int $after_id, int $limit ): array {
 		global $wpdb;

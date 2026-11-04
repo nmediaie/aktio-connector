@@ -186,6 +186,10 @@ class Rest {
 				'update_log'       => Updates::log( 5 ),
 				'languages'        => Multilang::languages(),
 				'multilingual'     => Multilang::summary(),
+				'affiliates'       => array(
+					'available' => Affiliates\Store::available(),
+					'enabled'   => Affiliates\Store::enabled(),
+				),
 			)
 		);
 	}
