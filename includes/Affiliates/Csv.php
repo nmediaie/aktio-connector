@@ -40,11 +40,11 @@ class Csv {
 	private const TEXT = array( 'affiliate_code', 'affiliate_name', 'source', 'status', 'reason', 'currency', 'clawback_ref', 'payout_ref' );
 
 	/**
-	 * Komórka tekstowa: wartość zaczynająca się od `=`, `+`, `-`, `@`, tabulatora lub CR dostaje na początku apostrof,
+	 * Komórka tekstowa: wartość zaczynająca się od `=`, `+`, `-`, `@` (także po wiodących białych znakach), tabulatora lub CR dostaje na początku apostrof,
 	 * więc Excel i LibreOffice traktują ją jako tekst, a nie formułę. Liczby (kwoty) nie przechodzą przez tę funkcję.
 	 */
 	public static function cell( string $value ): string {
-		return '' !== $value && false !== strpos( "=+-@\t\r", $value[0] ) ? "'" . $value : $value;
+		return 1 === preg_match( '/^(?:[\t\r]|\s*[=+\-@])/', $value ) ? "'" . $value : $value;
 	}
 
 	/** Wiersz nagłówka (CRLF na końcu). */
@@ -61,11 +61,11 @@ class Csv {
 	public static function lines( array $rows, array $affiliates = array() ): string {
 		$out = '';
 		foreach ( $rows as $row ) {
-			$aff               = $affiliates[ (int) $row['affiliate_id'] ] ?? array();
-			$row['affiliate_code'] = (string) ( $aff['code'] ?? '' );
-			$row['affiliate_name'] = (string) ( $aff['name'] ?? '' );
+			$aff                     = $affiliates[ (int) $row['affiliate_id'] ] ?? array();
+			$row['affiliate_code']   = (string) ( $aff['code'] ?? '' );
+			$row['affiliate_name']   = (string) ( $aff['name'] ?? '' );
 			$row['clawback_balance'] = Commissions::clawback_balance( $row );
-			$cells             = array();
+			$cells                   = array();
 			foreach ( self::COLUMNS as $column ) {
 				$value   = isset( $row[ $column ] ) ? (string) $row[ $column ] : '';
 				$cells[] = in_array( $column, self::TEXT, true ) ? self::cell( $value ) : $value;

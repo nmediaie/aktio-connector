@@ -8,7 +8,7 @@ Stable tag: 0.3.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Basic SEO, schema.org, llms.txt, robots.txt for AI bots, IndexNow and AI visit measurement and an optional affiliate programme for WooCommerce — standalone or together with Aktio.
+Basic SEO, schema.org, llms.txt, robots.txt for AI bots, AI visit measurement and an optional WooCommerce affiliate programme.
 
 == Description ==
 

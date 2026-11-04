@@ -20,7 +20,7 @@ class Privacy {
 	}
 
 	public static function exporters( $exporters ): array {
-		$exporters          = is_array( $exporters ) ? $exporters : array();
+		$exporters             = is_array( $exporters ) ? $exporters : array();
 		$exporters[ self::ID ] = array(
 			'exporter_friendly_name' => __( 'Aktio Connector affiliate', 'aktio-connector' ),
 			'callback'               => array( __CLASS__, 'export' ),
@@ -29,7 +29,7 @@ class Privacy {
 	}
 
 	public static function erasers( $erasers ): array {
-		$erasers          = is_array( $erasers ) ? $erasers : array();
+		$erasers             = is_array( $erasers ) ? $erasers : array();
 		$erasers[ self::ID ] = array(
 			'eraser_friendly_name' => __( 'Aktio Connector affiliate', 'aktio-connector' ),
 			'callback'             => array( __CLASS__, 'erase' ),
@@ -105,7 +105,7 @@ class Privacy {
 		}
 		return array(
 			'items_removed'  => $removed,
-			'items_retained' => $failed > 0,
+			'items_retained' => $removed > 0 || $failed > 0, // Zanonimizowany wiersz zostaje, bo kwoty prowizji są historią rozliczeń.
 			'messages'       => $removed > 0 ? array( __( 'Affiliate name, email and contact ID were erased. Commission amounts are kept as a settlement record.', 'aktio-connector' ) ) : array(),
 			'done'           => true,
 		);

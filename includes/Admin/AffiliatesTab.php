@@ -342,6 +342,29 @@ class AffiliatesTab {
 		}
 	}
 
+	private static function status_label( string $status ): string {
+		$labels = array(
+			'pending'  => __( 'Pending', 'aktio-connector' ),
+			'approved' => __( 'Approved', 'aktio-connector' ),
+			'rejected' => __( 'Rejected', 'aktio-connector' ),
+			'paid'     => __( 'Paid', 'aktio-connector' ),
+		);
+		return $labels[ $status ] ?? $status;
+	}
+
+	private static function reason_label( string $reason ): string {
+		$labels = array(
+			'order_status'  => __( 'order status', 'aktio-connector' ),
+			'self_referral' => __( 'own purchase', 'aktio-connector' ),
+			'manual'        => __( 'rejected manually', 'aktio-connector' ),
+		);
+		return $labels[ $reason ] ?? $reason;
+	}
+
+	private static function source_label( string $source ): string {
+		return 'coupon' === $source ? __( 'Coupon', 'aktio-connector' ) : __( 'Link', 'aktio-connector' );
+	}
+
 	private static function percent( ?int $bp ): string {
 		return null === $bp ? '' : rtrim( rtrim( number_format( $bp / 100, 2, '.', '' ), '0' ), '.' );
 	}
@@ -469,7 +492,7 @@ class AffiliatesTab {
 		echo '<form method="get" action="' . esc_url( admin_url( 'options-general.php' ) ) . '"><input type="hidden" name="page" value="' . esc_attr( SettingsPage::SLUG ) . '" /><input type="hidden" name="tab" value="affiliates" /><p>';
 		echo '<label>' . esc_html__( 'Status', 'aktio-connector' ) . ' <select name="c_status"><option value="">' . esc_html__( 'All', 'aktio-connector' ) . '</option>';
 		foreach ( Commissions::STATUSES as $status ) {
-			echo '<option value="' . esc_attr( $status ) . '"' . selected( $filters['status'] ?? '', $status, false ) . '>' . esc_html( $status ) . '</option>';
+			echo '<option value="' . esc_attr( $status ) . '"' . selected( $filters['status'] ?? '', $status, false ) . '>' . esc_html( self::status_label( $status ) ) . '</option>';
 		}
 		echo '</select></label> <label>' . esc_html__( 'Affiliate', 'aktio-connector' ) . ' <select name="c_affiliate"><option value="">' . esc_html__( 'All', 'aktio-connector' ) . '</option>';
 		foreach ( $affiliates as $row ) {
@@ -495,8 +518,8 @@ class AffiliatesTab {
 				echo '<tr><th scope="row" class="check-column"><input type="checkbox" name="ids[]" value="' . esc_attr( (string) $row['id'] ) . '" aria-label="' . esc_attr__( 'Select commission', 'aktio-connector' ) . '" /></th>';
 				echo '<td>#' . esc_html( (string) $row['order_id'] ) . '</td>';
 				echo '<td>' . esc_html( (string) ( $aff['name'] ?? '' ) ) . '</td>';
-				echo '<td>' . esc_html( $row['source'] ) . '</td>';
-				echo '<td>' . esc_html( $row['status'] . ( '' !== $row['reason'] ? ' (' . $row['reason'] . ')' : '' ) ) . '</td>';
+				echo '<td>' . esc_html( self::source_label( $row['source'] ) ) . '</td>';
+				echo '<td>' . esc_html( self::status_label( $row['status'] ) . ( '' !== $row['reason'] ? ' (' . self::reason_label( $row['reason'] ) . ')' : '' ) ) . '</td>';
 				echo '<td>' . esc_html( self::money( $row['base_amount'] ) . ' ' . $row['currency'] ) . '</td>';
 				echo '<td>' . esc_html( self::money( $row['commission'] ) . ' ' . $row['currency'] ) . '</td>';
 				echo '<td>' . ( 0.0 !== (float) $balance ? '<strong class="aktio-aff-clawback">' . esc_html( self::money( $balance ) . ' ' . $row['currency'] ) . '</strong>' : '&ndash;' ) . '</td>';
@@ -544,7 +567,9 @@ class AffiliatesTab {
 			'c_from'      => $filters['from'] ?? '',
 			'c_to'        => $filters['to'] ?? '',
 		);
-		echo '<p class="tablenav-pages">' . esc_html( sprintf( /* translators: 1: page, 2: number of pages, 3: total commissions */ __( 'Page %1$d of %2$d (%3$d commissions)', 'aktio-connector' ), $page, $pages, $total ) ) . ' ';
+		/* translators: 1: page number, 2: number of pages, 3: total number of commissions */
+		$summary = __( 'Page %1$d of %2$d (%3$d commissions)', 'aktio-connector' );
+		echo '<p class="tablenav-pages">' . esc_html( sprintf( $summary, $page, $pages, $total ) ) . ' ';
 		if ( $page > 1 ) {
 			echo '<a class="button" href="' . esc_url( add_query_arg( $args + array( 'c_page' => $page - 1 ), admin_url( 'options-general.php' ) ) ) . '">' . esc_html__( 'Previous', 'aktio-connector' ) . '</a> ';
 		}

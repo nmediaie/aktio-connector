@@ -325,6 +325,10 @@ class AffiliatesAdminTest extends WP_UnitTestCase {
 		foreach ( array( '=HYPERLINK(1)', '+1', '-1', '@a', "\tcmd", "\rcmd" ) as $value ) {
 			$this->assertSame( "'" . $value, Csv::cell( $value ), bin2hex( $value ) );
 		}
+		foreach ( array( ' =1', "  \t+SUM(1)", "\n-1", ' @a' ) as $value ) {
+			$this->assertSame( "'" . $value, Csv::cell( $value ), bin2hex( $value ) );
+		}
+		$this->assertSame( ' plain', Csv::cell( ' plain' ) );
 		$this->assertSame( 'plain', Csv::cell( 'plain' ) );
 		$this->assertSame( '', Csv::cell( '' ) );
 		$this->assertSame( 'a=1', Csv::cell( 'a=1' ) );
@@ -363,6 +367,17 @@ class AffiliatesAdminTest extends WP_UnitTestCase {
 		$_REQUEST = $_POST;
 		$this->expectException( WPDieException::class );
 		AffiliatesTab::handle_export();
+	}
+
+	public function test_commission_statuses_are_translated_in_the_table_and_raw_in_csv() {
+		$a = $this->affiliate();
+		$this->commission( $a['id'], array( 'status' => 'rejected', 'reason' => 'self_referral' ) );
+		$html = $this->html( array( 'tab' => 'affiliates' ) );
+		$this->assertStringContainsString( 'Rejected (own purchase)', $html );
+		$this->assertStringNotContainsString( '>rejected (self_referral)<', $html );
+
+		$csv = implode( '', iterator_to_array( AffiliatesTab::csv_chunks( array() ), false ) );
+		$this->assertStringContainsString( ',rejected,self_referral,', $csv );
 	}
 
 	// ---------------------------------------------------------------------- Kupon
@@ -448,6 +463,7 @@ class AffiliatesAdminTest extends WP_UnitTestCase {
 		$result = Privacy::erase( 'ewa@example.com' );
 		$this->assertTrue( $result['done'] );
 		$this->assertSame( 1, $result['items_removed'] );
+		$this->assertTrue( $result['items_retained'], 'Kwoty prowizji zostają, więc WordPress ma o tym wiedzieć.' );
 		$row = Store::get_affiliate( $a['id'] );
 		$this->assertSame( '', $row['email'] );
 		$this->assertSame( '', $row['external_id'] );
@@ -461,6 +477,7 @@ class AffiliatesAdminTest extends WP_UnitTestCase {
 		$this->assertSame( array(), Privacy::export( 'ewa@example.com' )['data'] );
 		$again = Privacy::erase( 'ewa@example.com' );
 		$this->assertSame( 0, $again['items_removed'] );
+		$this->assertFalse( $again['items_retained'] );
 	}
 
 	public function test_privacy_ignores_empty_email() {
@@ -477,9 +494,58 @@ class AffiliatesAdminTest extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'No cookies and no visitor identifiers are used.', $readme );
 		$this->assertStringContainsString( '**Privacy of the affiliate programme**', $readme );
 		$this->assertStringContainsString( 'aktio_ref', $readme );
-		$this->assertStringContainsString( '= 0.3.0 =', $readme );
-		$this->assertStringContainsString( 'Stable tag: 0.3.0', $readme );
-		$this->assertSame( 1, preg_match( '/Version:\s+0\.3\.0/', (string) file_get_contents( dirname( __DIR__ ) . '/aktio-connector.php' ) ) );
-		$this->assertSame( '0.3.0', AKTIO_CONNECTOR_VERSION );
+	}
+
+	public function test_version_constant_header_and_stable_tag_agree() {
+		$readme = (string) file_get_contents( dirname( __DIR__ ) . '/readme.txt' );
+		$main   = (string) file_get_contents( dirname( __DIR__ ) . '/aktio-connector.php' );
+		$this->assertSame( 1, preg_match( '/^Stable tag:\s*(\S+)/m', $readme, $stable ) );
+		$this->assertSame( 1, preg_match( '/^ \* Version:\s*(\S+)/m', $main, $header ) );
+		$this->assertSame( AKTIO_CONNECTOR_VERSION, $header[1] );
+		$this->assertSame( AKTIO_CONNECTOR_VERSION, $stable[1] );
+		$this->assertStringContainsString( '= ' . AKTIO_CONNECTOR_VERSION . ' =', $readme );
+	}
+
+	public function test_readme_short_description_fits_the_limit() {
+		$readme = explode( "\n", (string) file_get_contents( dirname( __DIR__ ) . '/readme.txt' ) );
+		$this->assertLessThanOrEqual( 150, strlen( $readme[10] ) );
+		$this->assertStringContainsString( 'affiliate programme', $readme[10] );
+	}
+
+	// ---------------------------------------------------------------------- Tłumaczenie
+
+	public function test_polish_translation_covers_affiliate_strings() {
+		$mo = new MO();
+		$this->assertTrue( $mo->import_from_file( dirname( __DIR__ ) . '/languages/aktio-connector-pl_PL.mo' ) );
+		$sample = array(
+			'Affiliate settings saved.'                  => 'Ustawienia programu partnerskiego zostały zapisane.',
+			'Link generator'                             => 'Generator linku',
+			'Mark as paid'                               => 'Oznacz jako wypłaconą',
+			'Deleted partner'                            => 'Usunięty partner',
+			'The address must point to a page of this shop.' => 'Adres musi wskazywać stronę tego sklepu.',
+			'Clawback to settle: %1$s %2$s'              => 'Potrącenie do rozliczenia: %1$s %2$s',
+		);
+		foreach ( $sample as $english => $polish ) {
+			$this->assertSame( $polish, $mo->translate( $english ), $english );
+		}
+	}
+
+	public function test_no_affiliate_string_has_an_empty_polish_translation() {
+		$dir = dirname( __DIR__ );
+		$mo  = new MO();
+		$mo->import_from_file( $dir . '/languages/aktio-connector-pl_PL.mo' );
+
+		$files = array_merge( glob( $dir . '/includes/Affiliates/*.php' ), array( $dir . '/includes/Admin/AffiliatesTab.php' ) );
+		$count = 0;
+		foreach ( $files as $file ) {
+			preg_match_all( "/__\(\s*'((?:[^'\\\\]|\\\\.)*)'\s*,\s*'aktio-connector'/", (string) file_get_contents( $file ), $m );
+			foreach ( $m[1] as $raw ) {
+				$english = stripslashes( $raw );
+				$count++;
+				$this->assertArrayHasKey( $english, $mo->entries, basename( $file ) . ': brak wpisu w .mo' );
+				$this->assertNotSame( '', (string) $mo->entries[ $english ]->translations[0], basename( $file ) . ': pusty wpis: ' . $english );
+			}
+		}
+		$this->assertGreaterThan( 100, $count );
 	}
 }
