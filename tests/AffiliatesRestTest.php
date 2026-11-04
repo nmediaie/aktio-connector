@@ -151,18 +151,21 @@ class AffiliatesRestTest extends WP_UnitTestCase {
 		list( , $paid ) = $this->row_in_state( 'approved', $partner, 'EUR' );
 		Store::update_commission( $paid['id'], array( 'status' => 'paid', 'commission_paid' => '8.0000', 'clawback' => '3.0000', 'clawback_settled_amount' => '1.0000' ) );
 		Store::add_click( $partner['id'] );
+		$this->row_in_state( 'rejected', $partner, 'EUR' );
 
 		$data = $this->request( 'GET', 'affiliates' )->get_data();
 		$this->assertSame( add_query_arg( 'ref', $partner['code'], home_url( '/' ) ), $data['items'][0]['link'] );
 		$totals = $data['items'][0]['totals'];
 		$this->assertEqualsCanonicalizing( array( 'EUR', 'PLN' ), array_keys( $totals ) );
 		$this->assertSame( '8.0000', $totals['PLN']['pending'] );
+		$this->assertSame( '0.0000', $totals['PLN']['rejected'] );
 		$this->assertSame( '0.0000', $totals['PLN']['approved'] );
 		$this->assertSame( '8.0000', $totals['EUR']['approved'] );
 		$this->assertSame( '8.0000', $totals['EUR']['paid'] );
 		$this->assertSame( '2.0000', $totals['EUR']['clawback_balance'] );
 		$this->assertSame( 1, $data['items'][0]['clicks'] );
-		$this->assertSame( 3, $data['items'][0]['orders'] );
+		$this->assertSame( '8.0000', $totals['EUR']['rejected'] );
+		$this->assertSame( 4, $data['items'][0]['orders'] );
 	}
 
 	public function test_commissions_list_filters_and_clamps_page_size() {
@@ -326,6 +329,125 @@ class AffiliatesRestTest extends WP_UnitTestCase {
 		$this->assertSame( 'paid', Store::commission_for_order( $row2['order_id'] )['status'] );
 	}
 
+	public function test_ids_must_be_positive_integers() {
+		list( , $row ) = $this->row_in_state( 'approved' );
+		$id            = $row['id'];
+		$bad           = array( array( array( $id ) ), array( true ), array( (float) $id + 0.9 ), array( $id . 'abc' ), array( 0 ), array( -1 ), array( 'abc' ), array( null ), array( $id, 'abc' ), array( ' ' . $id ), array( (string) $id . '.0' ) );
+		foreach ( $bad as $ids ) {
+			$res = $this->act( 'paid', $ids, array( 'payout_ref' => 'X' ) );
+			$this->assertSame( 400, $res->get_status(), wp_json_encode( $ids ) );
+			$this->assertSame( 'aktio_aff_invalid', $res->get_data()['code'], wp_json_encode( $ids ) );
+		}
+		$this->assertSame( 'approved', Store::commission_for_order( $row['order_id'] )['status'] );
+		$ok = $this->act( 'paid', array( (string) $id ), array( 'payout_ref' => 'X' ) );
+		$this->assertSame( 'ok', $ok->get_data()['results'][ $id ] );
+	}
+
+	public function test_apply_does_not_coerce_or_truncate() {
+		list( , $row ) = $this->row_in_state( 'approved' );
+		$this->assertInstanceOf( WP_Error::class, Commissions::apply( 'paid', array( array( $row['id'] ) ), 'X' ) );
+		$this->assertInstanceOf( WP_Error::class, Commissions::apply( 'paid', array( $row['id'] . 'abc' ), 'X' ) );
+		$this->assertInstanceOf( WP_Error::class, Commissions::apply( 'paid', array( 0 ), 'X' ) );
+		$this->assertSame( 'aktio_aff_too_many', Commissions::apply( 'approve', range( 1, 201 ) )->get_error_code() );
+		$this->assertInstanceOf( WP_Error::class, Commissions::apply( 'explode', array( $row['id'] ) ) );
+		$this->assertInstanceOf( WP_Error::class, Commissions::apply( 'paid', array( $row['id'] ), '' ) );
+		$this->assertSame( 'approved', Store::commission_for_order( $row['order_id'] )['status'] );
+		$res = Commissions::apply( 'approve', range( 1, Commissions::MAX_IDS ) );
+		$this->assertCount( Commissions::MAX_IDS, $res['results'] );
+	}
+
+	public function test_read_filters_reject_invalid_values() {
+		$partner = $this->affiliate();
+		$this->row_in_state( 'pending', $partner );
+		$bad = array(
+			array( 'status' => 'aproved' ),
+			array( 'affiliate_id' => 'abc' ),
+			array( 'affiliate_id' => array( 5 ) ),
+			array( 'affiliate_id' => '0' ),
+			array( 'affiliate_id' => '-3' ),
+			array( 'from' => 'garbage' ),
+			array( 'from' => '2026-13-45' ),
+			array( 'to' => '2026-02-30' ),
+			array( 'to' => array( '2026-01-01' ) ),
+		);
+		foreach ( $bad as $params ) {
+			$res = $this->request( 'GET', 'affiliates/commissions', $params );
+			$this->assertSame( 400, $res->get_status(), wp_json_encode( $params ) );
+			$this->assertSame( 'aktio_aff_invalid', $res->get_data()['code'], wp_json_encode( $params ) );
+		}
+		$day = gmdate( 'Y-m-d' );
+		$this->assertSame( 1, $this->request( 'GET', 'affiliates/commissions', array( 'status' => 'pending', 'affiliate_id' => (string) $partner['id'], 'from' => $day, 'to' => $day ) )->get_data()['total'] );
+		$this->assertSame( 0, $this->request( 'GET', 'affiliates/commissions', array( 'from' => gmdate( 'Y-m-d', time() + 2 * DAY_IN_SECONDS ) ) )->get_data()['total'] );
+		$this->assertSame( 0, $this->request( 'GET', 'affiliates/commissions', array( 'affiliate_id' => $partner['id'] + 1000 ) )->get_data()['total'] );
+		$this->assertSame( array(), $this->request( 'GET', 'affiliates/commissions', array( 'page' => 2, 'per_page' => 1 ) )->get_data()['items'] );
+		$this->assertSame( 2, $this->request( 'GET', 'affiliates/commissions', array( 'page' => 2 ) )->get_data()['page'] );
+	}
+
+	public function test_partner_ids_must_be_positive_integers() {
+		$partner = $this->affiliate();
+		foreach ( array( array( $partner['id'] ), 'abc', 0, -1, '7x', 1.5, true, null ) as $bad ) {
+			$res = $this->request( 'POST', 'affiliates', array( 'id' => $bad, 'name' => 'Hijack' ) );
+			$this->assertSame( 400, $res->get_status(), wp_json_encode( $bad ) );
+			$this->assertSame( 'aktio_aff_invalid', $res->get_data()['code'] );
+			$res = $this->request( 'GET', 'affiliates/link', array( 'affiliate_id' => $bad, 'url' => home_url( '/' ) ) );
+			$this->assertSame( 400, $res->get_status(), wp_json_encode( $bad ) );
+		}
+		$this->assertSame( $partner['name'], Store::get_affiliate( $partner['id'] )['name'] );
+		$this->assertSame( 200, $this->request( 'POST', 'affiliates', array( 'id' => (string) $partner['id'], 'name' => 'Fine' ) )->get_status() );
+	}
+
+	public function test_paid_with_zero_commission_is_invalid_state() {
+		list( $order, $row ) = $this->row_in_state( 'approved' );
+		$this->without_hooks(
+			function () use ( $order ) {
+				wc_create_refund( array( 'order_id' => $order->get_id(), 'amount' => 80 ) );
+				$order->set_status( 'completed' );
+				$order->save();
+			}
+		);
+		$res = $this->act( 'paid', array( $row['id'] ), array( 'payout_ref' => 'TR-1' ) );
+		$this->assertSame( 'invalid_state', $res->get_data()['results'][ $row['id'] ] );
+		$after = Store::commission_for_order( $row['order_id'] );
+		$this->assertSame( 'approved', $after['status'] );
+		$this->assertSame( '', $after['payout_ref'] );
+	}
+
+	public function test_coupon_scoped_to_partner_and_validated_before_saving() {
+		$a = $this->affiliate();
+		$b = $this->affiliate();
+		foreach ( array( 'ca10', 'cb10', 'free10' ) as $code ) {
+			$coupon = new WC_Coupon();
+			$coupon->set_code( $code );
+			$coupon->set_discount_type( 'percent' );
+			$coupon->set_amount( '10' );
+			$coupon->save();
+		}
+		$this->assertSame( 200, $this->request( 'POST', 'affiliates', array( 'id' => $a['id'], 'coupon_add' => 'ca10' ) )->get_status() );
+		$this->assertSame( 200, $this->request( 'POST', 'affiliates', array( 'id' => $b['id'], 'coupon_add' => 'cb10' ) )->get_status() );
+
+		// Cudzy kupon: nie do zdjęcia i nie do przejęcia; nic się nie zapisuje.
+		$res = $this->request( 'POST', 'affiliates', array( 'id' => $a['id'], 'name' => 'Changed', 'coupon_remove' => 'cb10' ) );
+		$this->assertSame( 'aktio_aff_invalid', $res->get_data()['code'] );
+		$res = $this->request( 'POST', 'affiliates', array( 'id' => $a['id'], 'name' => 'Changed', 'coupon_add' => 'cb10' ) );
+		$this->assertSame( 'aktio_aff_invalid', $res->get_data()['code'] );
+		$res = $this->request( 'POST', 'affiliates', array( 'name' => 'New', 'coupon_add' => 'cb10' ) );
+		$this->assertSame( 'aktio_aff_invalid', $res->get_data()['code'] );
+		$res = $this->request( 'POST', 'affiliates', array( 'name' => 'New', 'coupon_remove' => 'free10' ) );
+		$this->assertSame( 'aktio_aff_invalid', $res->get_data()['code'] );
+		$this->assertSame( $a['name'], Store::get_affiliate( $a['id'] )['name'] );
+		$this->assertSame( (string) $b['id'], (string) ( new WC_Coupon( 'cb10' ) )->get_meta( Store::COUPON_META ) );
+
+		// Wstrzymany partner: kupon nie jest przypisywany, a zmiana nie zapisuje się częściowo.
+		$res = $this->request( 'POST', 'affiliates', array( 'id' => $a['id'], 'status' => 'paused', 'coupon_add' => 'free10' ) );
+		$this->assertSame( 400, $res->get_status() );
+		$this->assertSame( 'aktio_aff_paused', $res->get_data()['code'] );
+		$this->assertSame( 'active', Store::get_affiliate( $a['id'] )['status'] );
+
+		// Własny kupon wolno zdjąć.
+		$this->assertSame( 200, $this->request( 'POST', 'affiliates', array( 'id' => $a['id'], 'coupon_remove' => 'ca10' ) )->get_status() );
+		$this->assertSame( '', (string) ( new WC_Coupon( 'ca10' ) )->get_meta( Store::COUPON_META ) );
+	}
+
 	public function test_ids_limit_200() {
 		$res = $this->act( 'approve', range( 1, 201 ) );
 		$this->assertSame( 400, $res->get_status() );
@@ -459,7 +581,7 @@ class AffiliatesRestTest extends WP_UnitTestCase {
 		add_filter( 'home_url', $filter );
 		$this->assertSame( 'http://shop.example.com/blog/p/?ref=abc', Tracker::link_for( 'http://shop.example.com/blog/p/', 'abc' ) );
 		$this->assertSame( 'http://shop.example.com/blog?ref=abc', Tracker::link_for( 'http://shop.example.com/blog', 'abc' ) );
-		foreach ( array( 'http://shop.example.com/', 'http://shop.example.com/blogger/', 'http://shop.example.com/blog/../x', 'http://shop.example.com/other/blog/' ) as $url ) {
+		foreach ( array( 'http://shop.example.com/', 'http://shop.example.com/blogger/', 'http://shop.example.com/blog/../x', 'http://shop.example.com/other/blog/', 'http://shop.example.com/blog/%2e%2e/x', 'http://shop.example.com/blog/.%2E/admin', 'http://shop.example.com/blog/%2E%2e/admin', 'http://shop.example.com/blog/%252e%252e/x', 'http://shop.example.com/blog/a%2Fb', 'http://shop.example.com/blog/a%5cb', 'http://shop.example.com/blog/a%5Cb' ) as $url ) {
 			$result = Tracker::link_for( $url, 'abc' );
 			$this->assertInstanceOf( WP_Error::class, $result, $url );
 		}

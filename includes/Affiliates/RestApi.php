@@ -117,20 +117,31 @@ class RestApi {
 	 */
 	public static function save_affiliate( \WP_REST_Request $request ) {
 		$body = self::body( $request );
-		$add  = self::codes( $body['coupon_add'] ?? array() );
-		$rem  = self::codes( $body['coupon_remove'] ?? array() );
+		$id   = 0;
+		if ( array_key_exists( 'id', $body ) ) {
+			$id = self::positive_int( $body['id'] );
+			if ( null === $id ) {
+				return self::invalid( __( 'The affiliate ID must be a positive whole number.', 'aktio-connector' ) );
+			}
+			$body['id'] = $id;
+		}
+		$existing = $id > 0 ? Store::get_affiliate( $id ) : null;
+		if ( $id > 0 && null === $existing ) {
+			return self::fail( new \WP_Error( 'aktio_aff_not_found', __( 'Affiliate not found.', 'aktio-connector' ) ) );
+		}
+		$add = self::codes( $body['coupon_add'] ?? array() );
+		$rem = self::codes( $body['coupon_remove'] ?? array() );
 		if ( null === $add || null === $rem ) {
 			return self::invalid( __( 'Coupon codes must be text or a list of text.', 'aktio-connector' ) );
 		}
-		foreach ( array_merge( $add, $rem ) as $code ) {
-			if ( ! Store::available() || wc_get_coupon_id_by_code( wc_format_coupon_code( $code ) ) <= 0 ) {
-				return self::fail( new \WP_Error( 'aktio_aff_coupon_not_found', __( 'Coupon not found.', 'aktio-connector' ) ) );
-			}
+		$error = self::check_coupons( $id, $existing, $body, $add, $rem );
+		if ( null !== $error ) {
+			return self::fail( $error );
 		}
 
-		$id = Store::save_affiliate( array_intersect_key( $body, array_flip( array( 'id', 'name', 'email', 'code', 'rate_bp', 'status', 'external_id' ) ) ) );
-		if ( is_wp_error( $id ) ) {
-			return self::fail( $id );
+		$saved = Store::save_affiliate( array_intersect_key( $body, array_flip( array( 'id', 'name', 'email', 'code', 'rate_bp', 'status', 'external_id' ) ) ) );
+		if ( is_wp_error( $saved ) ) {
+			return self::fail( $saved );
 		}
 		foreach ( $rem as $code ) {
 			$done = Store::unassign_coupon( $code );
@@ -139,17 +150,50 @@ class RestApi {
 			}
 		}
 		foreach ( $add as $code ) {
-			$done = Store::assign_coupon( $id, $code );
+			$done = Store::assign_coupon( $saved, $code );
 			if ( is_wp_error( $done ) ) {
 				return self::fail( $done );
 			}
 		}
-		return rest_ensure_response( array( 'affiliate' => self::present( (array) Store::get_affiliate( $id ) ) ) );
+		return rest_ensure_response( array( 'affiliate' => self::present( (array) Store::get_affiliate( $saved ) ) ) );
+	}
+
+	/**
+	 * Kupony sprawdzane przed zapisem partnera, żeby błąd nie zostawił częściowej zmiany: kupon musi istnieć,
+	 * zdjąć wolno tylko kupon tego partnera, przypisać wolno kupon wolny albo już jego, a wstrzymany partner
+	 * (także po tej zmianie) nie dostaje kuponów.
+	 */
+	private static function check_coupons( int $id, ?array $existing, array $body, array $add, array $rem ): ?\WP_Error {
+		foreach ( array_merge( $add, $rem ) as $code ) {
+			if ( null === Store::coupon_owner( $code ) ) {
+				return new \WP_Error( 'aktio_aff_coupon_not_found', __( 'Coupon not found.', 'aktio-connector' ) );
+			}
+		}
+		foreach ( $rem as $code ) {
+			if ( $id <= 0 || Store::coupon_owner( $code ) !== $id ) {
+				return new \WP_Error( 'aktio_aff_invalid', __( 'Only a coupon assigned to this affiliate can be removed.', 'aktio-connector' ) );
+			}
+		}
+		foreach ( $add as $code ) {
+			$owner = (int) Store::coupon_owner( $code );
+			if ( 0 !== $owner && $owner !== $id ) {
+				return new \WP_Error( 'aktio_aff_invalid', __( 'This coupon is already assigned to another affiliate.', 'aktio-connector' ) );
+			}
+		}
+		$status = is_string( $body['status'] ?? null ) ? $body['status'] : ( $existing['status'] ?? 'active' );
+		if ( array() !== $add && 'active' !== $status ) {
+			return new \WP_Error( 'aktio_aff_paused', __( 'A paused affiliate cannot be assigned new coupons.', 'aktio-connector' ) );
+		}
+		return null;
 	}
 
 	/** GET affiliates/link: `affiliate_id`, `url`. */
 	public static function link( \WP_REST_Request $request ) {
-		$affiliate = Store::get_affiliate( (int) $request->get_param( 'affiliate_id' ) );
+		$id = self::positive_int( $request->get_param( 'affiliate_id' ) );
+		if ( null === $id ) {
+			return self::invalid( __( 'The affiliate ID must be a positive whole number.', 'aktio-connector' ) );
+		}
+		$affiliate = Store::get_affiliate( $id );
 		if ( null === $affiliate ) {
 			return self::fail( new \WP_Error( 'aktio_aff_not_found', __( 'Affiliate not found.', 'aktio-connector' ) ) );
 		}
@@ -160,21 +204,35 @@ class RestApi {
 
 	// ----------------------------------------------------------------------- Prowizje
 
-	/** GET affiliates/commissions: status, affiliate_id, from, to (Y-m-d), page, per_page (do 100). */
-	public static function list_commissions( \WP_REST_Request $request ): \WP_REST_Response {
-		$status   = $request->get_param( 'status' );
+	/** GET affiliates/commissions: status, affiliate_id, from, to (Y-m-d), page, per_page (do 100). Zły filtr to błąd, nie szerszy wynik. */
+	public static function list_commissions( \WP_REST_Request $request ) {
+		$filters = array();
+		$status  = $request->get_param( 'status' );
+		if ( null !== $status && '' !== $status ) {
+			if ( ! is_string( $status ) || ! in_array( $status, Commissions::STATUSES, true ) ) {
+				return self::invalid( __( 'The status filter is not valid.', 'aktio-connector' ) );
+			}
+			$filters['status'] = $status;
+		}
+		$affiliate = $request->get_param( 'affiliate_id' );
+		if ( null !== $affiliate && '' !== $affiliate ) {
+			$filters['affiliate_id'] = self::positive_int( $affiliate );
+			if ( null === $filters['affiliate_id'] ) {
+				return self::invalid( __( 'The affiliate ID must be a positive whole number.', 'aktio-connector' ) );
+			}
+		}
+		foreach ( array( 'from', 'to' ) as $key ) {
+			$date = $request->get_param( $key );
+			if ( null !== $date && '' !== $date ) {
+				if ( ! self::is_date( $date ) ) {
+					return self::invalid( __( 'Dates must be real dates in the YYYY-MM-DD format.', 'aktio-connector' ) );
+				}
+				$filters[ $key ] = $date;
+			}
+		}
 		$per_page = min( self::MAX_PER_PAGE, max( 1, (int) ( $request->get_param( 'per_page' ) ?? 50 ) ) );
 		$page     = max( 1, (int) ( $request->get_param( 'page' ) ?? 1 ) );
-		$result   = Store::query_commissions(
-			array(
-				'status'       => is_string( $status ) && in_array( $status, Commissions::STATUSES, true ) ? $status : '',
-				'affiliate_id' => (int) $request->get_param( 'affiliate_id' ),
-				'from'         => $request->get_param( 'from' ),
-				'to'           => $request->get_param( 'to' ),
-				'page'         => $page,
-				'per_page'     => $per_page,
-			)
-		);
+		$result   = Store::query_commissions( $filters + array( 'page' => $page, 'per_page' => $per_page ) );
 		foreach ( $result['items'] as &$item ) {
 			$item['clawback_balance'] = Commissions::clawback_balance( $item );
 		}
@@ -200,9 +258,6 @@ class RestApi {
 		if ( ! is_array( $ids ) || array() === $ids ) {
 			return self::invalid( __( 'Provide a list of commission IDs.', 'aktio-connector' ) );
 		}
-		if ( count( $ids ) > Store::MAX_PER_PAGE ) {
-			return self::fail( new \WP_Error( 'aktio_aff_too_many', __( 'At most 200 commissions can be changed at once.', 'aktio-connector' ) ) );
-		}
 		$ref = '';
 		if ( 'paid' === $action || 'settle_clawback' === $action ) {
 			$key = 'paid' === $action ? 'payout_ref' : 'clawback_ref';
@@ -211,7 +266,8 @@ class RestApi {
 				return self::invalid( __( 'The reference is required and can have at most 100 characters.', 'aktio-connector' ) );
 			}
 		}
-		return rest_ensure_response( Commissions::apply( $action, $ids, $ref ) );
+		$result = Commissions::apply( $action, $ids, $ref );
+		return is_wp_error( $result ) ? self::fail( $result ) : rest_ensure_response( $result );
 	}
 
 	// ------------------------------------------------------------------ Raport, ustawienia
@@ -257,6 +313,19 @@ class RestApi {
 	private static function present( array $row ): array {
 		$link = Tracker::link_for( home_url( '/' ), (string) ( $row['code'] ?? '' ) );
 		return $row + array( 'link' => is_wp_error( $link ) ? '' : $link );
+	}
+
+	/** Dodatnia liczba całkowita z int albo tekstu z samych cyfr; null dla wszystkiego innego (bez rzutowania). */
+	private static function positive_int( $value ): ?int {
+		if ( is_string( $value ) && 1 === preg_match( '/^[1-9][0-9]{0,17}\z/', $value ) ) {
+			return (int) $value;
+		}
+		return is_int( $value ) && $value > 0 ? $value : null;
+	}
+
+	/** Prawdziwa data Y-m-d (checkdate), nie tylko ciąg w tym kształcie. */
+	private static function is_date( $value ): bool {
+		return is_string( $value ) && 1 === preg_match( '/^(\d{4})-(\d{2})-(\d{2})\z/', $value, $m ) && checkdate( (int) $m[2], (int) $m[3], (int) $m[1] );
 	}
 
 	private static function body( \WP_REST_Request $request ): array {

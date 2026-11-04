@@ -247,9 +247,14 @@ class Tracker {
 			if ( $path !== $home_path && 0 !== strpos( $path, $home_path . '/' ) ) {
 				return $outside;
 			}
-			if ( in_array( '..', explode( '/', $path ), true ) ) {
+			// Przeglądarka zdejmuje zakodowane kropki (%2e) i podwójnie zakodowane znaki przed wysłaniem żądania.
+			$decoded = rawurldecode( $path );
+			if ( 1 === preg_match( '/%[0-9a-f]{2}/i', $decoded ) || in_array( '..', explode( '/', $decoded ), true ) ) {
 				return $outside;
 			}
+		}
+		if ( 1 === preg_match( '/%(2f|5c)/i', $path ) ) {
+			return $outside; // Zakodowany ukośnik lub ukośnik odwrotny zmienia strukturę ścieżki.
 		}
 
 		// Adres składamy ze zweryfikowanych części; zapytanie zostaje bajt w bajt poza zastępowanym parametrem.

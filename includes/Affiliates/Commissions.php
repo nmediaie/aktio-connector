@@ -23,6 +23,9 @@ class Commissions {
 	/** Akcje właściciela dla apply(). */
 	const ACTIONS = array( 'approve', 'reject', 'paid', 'settle_clawback' );
 
+	/** Najwięcej wierszy w jednej akcji. */
+	const MAX_IDS = 200;
+
 	/** Statusy zamówienia, przy których prowizja nie może iść dalej. */
 	private const ORDER_REJECTING = array( 'refunded', 'cancelled', 'failed' );
 
@@ -344,17 +347,37 @@ class Commissions {
 	 * Akcja właściciela na wierszach. Wynik wiersza: ok | skipped | invalid_state | order_refunded | order_missing.
 	 * `skipped`: wiersza nie ma, zmienił się w międzyczasie albo przeliczenie się nie udało (reszta paczki idzie dalej).
 	 * Zmiany stanu tylko przez transition(), więc powtórne `paid` niczego nie zmienia.
+	 * Wejście jest sprawdzane w całości przed jakąkolwiek zmianą i nigdy nie jest rzutowane na inny wiersz:
+	 * id to dodatnie liczby całkowite (int albo tekst z samych cyfr), najwyżej MAX_IDS; wynik ma klucz na każde id.
 	 *
-	 * @return array{results:array<int,string>}
+	 * @return array{results:array<int,string>}|\WP_Error aktio_aff_invalid albo aktio_aff_too_many.
 	 */
-	public static function apply( string $action, array $ids, string $ref = '' ): array {
-		$ids     = array_slice( array_values( array_unique( array_filter( array_map( 'intval', $ids ), static fn( $i ) => $i > 0 ) ) ), 0, Store::MAX_PER_PAGE );
-		$results = array();
-		$clean   = self::clean_ref( $ref );
-		$needs   = in_array( $action, array( 'paid', 'settle_clawback' ), true );
-		if ( ! in_array( $action, self::ACTIONS, true ) || ( $needs && null === $clean ) ) {
-			return array( 'results' => array_fill_keys( $ids, 'invalid_state' ) );
+	public static function apply( string $action, array $ids, string $ref = '' ) {
+		$clean = self::clean_ref( $ref );
+		if ( ! in_array( $action, self::ACTIONS, true ) ) {
+			return new \WP_Error( 'aktio_aff_invalid', __( 'The action must be approve, reject, paid or settle_clawback.', 'aktio-connector' ) );
 		}
+		if ( in_array( $action, array( 'paid', 'settle_clawback' ), true ) && null === $clean ) {
+			return new \WP_Error( 'aktio_aff_invalid', __( 'The reference is required and can have at most 100 characters.', 'aktio-connector' ) );
+		}
+		if ( array() === $ids ) {
+			return new \WP_Error( 'aktio_aff_invalid', __( 'Provide a list of commission IDs.', 'aktio-connector' ) );
+		}
+		if ( count( $ids ) > self::MAX_IDS ) {
+			return new \WP_Error( 'aktio_aff_too_many', __( 'At most 200 commissions can be changed at once.', 'aktio-connector' ) );
+		}
+		$clean_ids = array();
+		foreach ( $ids as $id ) {
+			if ( is_string( $id ) && 1 === preg_match( '/^[1-9][0-9]{0,17}\z/', $id ) ) {
+				$id = (int) $id;
+			}
+			if ( ! is_int( $id ) || $id <= 0 ) {
+				return new \WP_Error( 'aktio_aff_invalid', __( 'Commission IDs must be positive whole numbers.', 'aktio-connector' ) );
+			}
+			$clean_ids[ $id ] = $id;
+		}
+		$ids     = array_values( $clean_ids );
+		$results = array();
 		$rows = array();
 		foreach ( Store::get_commissions_by_ids( $ids ) as $row ) {
 			$rows[ $row['id'] ] = $row;
@@ -399,7 +422,7 @@ class Commissions {
 					$row,
 					'approved',
 					'paid',
-					static fn( array $fresh ) => array(
+					static fn( array $fresh ) => (float) $fresh['commission'] <= 0.0 ? null : array(
 						'commission_paid' => $fresh['commission'],
 						'paid_at'         => current_time( 'mysql', true ),
 						'payout_ref'      => $ref,
@@ -414,7 +437,7 @@ class Commissions {
 	/**
 	 * Wspólny przebieg `approve` i `paid`: aktualne zamówienie decyduje pierwsze, potem wiersz jest czytany ponownie
 	 * (przeliczenie mogło zmienić kwoty) i zapisywany bramką stanu. `$fields` zwraca pola zapisu albo null, gdy
-	 * zamówienie nie spełnia warunku (invalid_state).
+	 * zamówienie lub kwota nie spełnia warunku (invalid_state).
 	 */
 	private static function apply_checked( array $row, string $from, string $to, callable $fields ): string {
 		$order  = self::order( $row['order_id'] );

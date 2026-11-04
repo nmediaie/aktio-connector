@@ -427,6 +427,12 @@ class Store {
 		return true;
 	}
 
+	/** Id partnera przypisanego do kuponu (0 = brak); null, gdy kuponu nie ma. */
+	public static function coupon_owner( string $code ): ?int {
+		$coupon = self::coupon( $code );
+		return null === $coupon ? null : (int) $coupon->get_meta( self::COUPON_META );
+	}
+
 	private static function coupon( string $code ): ?\WC_Coupon {
 		if ( ! self::available() || '' === trim( $code ) ) {
 			return null;
@@ -607,7 +613,7 @@ class Store {
 
 	/**
 	 * Sumy prowizji wg partnera i waluty (grupowanie w SQL, waluty nigdy nie są sumowane razem):
-	 * partner => waluta => {pending, approved, paid, clawback_balance}, a pod kluczem 0 sumy wszystkich partnerów.
+	 * partner => waluta => {pending, approved, rejected, paid, clawback_balance}, a pod kluczem 0 sumy wszystkich partnerów.
 	 * `paid` to wypłacone kwoty, `clawback_balance` to saldo potrąceń wierszy `paid`. Do tego liczba zamówień partnera.
 	 *
 	 * @return array{totals:array<int,array<string,array<string,string>>>,orders:array<int,int>}
@@ -622,9 +628,9 @@ class Store {
 			$cur = (string) $row['currency'];
 			foreach ( array( $id, 0 ) as $key ) {
 				if ( ! isset( $sums[ $key ][ $cur ] ) ) {
-					$sums[ $key ][ $cur ] = array( 'pending' => 0.0, 'approved' => 0.0, 'paid' => 0.0, 'clawback_balance' => 0.0 );
+					$sums[ $key ][ $cur ] = array( 'pending' => 0.0, 'approved' => 0.0, 'rejected' => 0.0, 'paid' => 0.0, 'clawback_balance' => 0.0 );
 				}
-				if ( 'pending' === $row['status'] || 'approved' === $row['status'] ) {
+				if ( in_array( $row['status'], array( 'pending', 'approved', 'rejected' ), true ) ) {
 					$sums[ $key ][ $cur ][ $row['status'] ] += (float) $row['commission'];
 				} elseif ( 'paid' === $row['status'] ) {
 					$sums[ $key ][ $cur ]['paid']             += (float) $row['paid'];
