@@ -25,6 +25,7 @@ class AffiliatesTrackerTest extends WP_UnitTestCase {
 	public function tear_down() {
 		unset( $_SERVER['HTTP_USER_AGENT'], $_COOKIE[ Tracker::COOKIE ] );
 		remove_all_filters( 'aktio_connector_affiliate_can_track' );
+		remove_all_filters( 'aktio_connector_affiliate_cookie_path' );
 		unset( $_SERVER['HTTPS'] );
 		$this->flush_transients();
 		delete_option( Settings::OPTION );
@@ -118,6 +119,25 @@ class AffiliatesTrackerTest extends WP_UnitTestCase {
 		$this->assertSame( '', $this->cookie( $this->post( $a['code'] ) ) );
 	}
 
+	public function test_consent_api_mode_is_localized() {
+		Settings::update( array( 'affiliates' => array( 'consent_mode' => 'consent_api' ) ) );
+		Tracker::enqueue();
+		$this->assertTrue( wp_script_is( 'aktio-affiliate', 'enqueued' ) );
+		$this->assertStringContainsString( '"mode":"consent_api"', wp_scripts()->get_data( 'aktio-affiliate', 'data' ) );
+	}
+
+	public function test_empty_or_unknown_consent_mode_skips_enqueue() {
+		foreach ( array( '', 'whatever' ) as $mode ) {
+			$raw                                 = get_option( Settings::OPTION );
+			$raw                                 = is_array( $raw ) ? $raw : array();
+			$raw['affiliates']                   = array( 'enabled' => true, 'consent_mode' => $mode );
+			update_option( Settings::OPTION, $raw );
+			// Settings::get() normalises enabled+empty/unknown mode to disabled, so Store::enabled() already blocks; Tracker::enqueue() re-checks the mode as a second guard.
+			Tracker::enqueue();
+			$this->assertFalse( wp_script_is( 'aktio-affiliate', 'enqueued' ), $mode );
+		}
+	}
+
 	public function test_tampered_and_expired_cookie_rejected() {
 		$ts    = time();
 		$mac   = Tracker::sign( 'abc-123', $ts );
@@ -143,8 +163,19 @@ class AffiliatesTrackerTest extends WP_UnitTestCase {
 	public function test_cookie_path_and_secure_follow_site() {
 		$a      = $this->affiliate();
 		$header = $this->cookie( $this->post( $a['code'] ) );
-		$this->assertStringContainsString( 'Path=' . COOKIEPATH, $header );
+		$this->assertStringContainsString( 'Path=' . COOKIEPATH . ';', $header );
 		$this->assertStringNotContainsString( 'Secure', $header );
+
+		add_filter(
+			'aktio_connector_affiliate_cookie_path',
+			static function () {
+				return '/sklep/';
+			}
+		);
+		$this->flush_transients();
+		$this->assertStringContainsString( '; Path=/sklep/;', $this->cookie( $this->post( $a['code'] ) ) );
+		remove_all_filters( 'aktio_connector_affiliate_cookie_path' );
+		$this->flush_transients();
 
 		$_SERVER['HTTPS'] = 'on';
 		$this->flush_transients();

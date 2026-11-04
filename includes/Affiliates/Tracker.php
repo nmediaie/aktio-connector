@@ -180,15 +180,21 @@ class Tracker {
 		return self::verify( wp_unslash( $_COOKIE[ self::COOKIE ] ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- weryfikowane podpisem.
 	}
 
+	/** Ścieżka cookie: COOKIEPATH (instalacja w podkatalogu) albo `/`; filtr pozwala ją zawęzić. */
+	public static function cookie_path(): string {
+		$path = defined( 'COOKIEPATH' ) && is_string( COOKIEPATH ) && '' !== COOKIEPATH ? COOKIEPATH : '/';
+		$path = apply_filters( 'aktio_connector_affiliate_cookie_path', $path );
+		return is_string( $path ) && '' !== $path ? $path : '/';
+	}
+
 	private static function cookie_header( string $code ): string {
 		$ts     = time();
 		$max    = self::window_seconds();
 		$value  = $code . '.' . $ts . '.' . self::sign( $code, $ts );
-		$path   = defined( 'COOKIEPATH' ) && '' !== COOKIEPATH ? COOKIEPATH : '/';
 		$header = self::COOKIE . '=' . $value
 			. '; Expires=' . gmdate( 'D, d M Y H:i:s', $ts + $max ) . ' GMT'
 			. '; Max-Age=' . $max
-			. '; Path=' . $path;
+			. '; Path=' . self::cookie_path();
 		if ( defined( 'COOKIE_DOMAIN' ) && is_string( COOKIE_DOMAIN ) && '' !== COOKIE_DOMAIN ) {
 			$header .= '; Domain=' . COOKIE_DOMAIN;
 		}
