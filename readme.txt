@@ -4,11 +4,11 @@ Tags: seo, schema, llms.txt, ai, woocommerce
 Requires at least: 6.2
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 0.2.2
+Stable tag: 0.3.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Basic SEO, schema.org, llms.txt, robots.txt for AI bots, IndexNow and AI visit measurement — standalone or together with Aktio.
+Basic SEO, schema.org, llms.txt, robots.txt for AI bots, IndexNow and AI visit measurement and an optional affiliate programme for WooCommerce — standalone or together with Aktio.
 
 == Description ==
 
@@ -22,6 +22,7 @@ Aktio Connector makes a WordPress site easier for search engines and AI bots to 
 * **Cache purge (new in 0.2):** after you save the settings or a product stock status changes, the plugin clears the cache of a detected caching plugin (Cache Enabler, WP Rocket, LiteSpeed Cache, W3 Total Cache, WP Super Cache, WP Fastest Cache, SiteGround Optimizer, Breeze, Cloudflare). All active caching plugins are purged. A stock status change purges only the product page, and only for plugins that can clear a single URL (Cache Enabler, WP Rocket, LiteSpeed Cache, W3 Total Cache, WP Super Cache); for the others it is skipped. There is also a "Clear now" button.
 * **IndexNow (new in 0.2, off by default):** tells Bing and other participating search engines about new, changed and deleted public URLs. Includes a log and a "Submit the whole sitemap" button. Never used on sites that discourage search engines and never for `noindex` addresses. Bing and Google site verification codes can be entered in the settings.
 * **AI visit measurement (new in 0.2):** counts visits of AI bots and visits coming from AI assistants and AI search (ChatGPT, Perplexity, Gemini, Copilot, Claude), without cookies. See the privacy section below.
+* **Affiliate programme for WooCommerce (new in 0.3, off by default):** partners get a link (`?ref=CODE`) or a coupon; orders are attributed automatically (a partner's coupon wins over the cookie) and a commission is calculated on the order total without tax and shipping. A commission follows the order: completed starts a hold period (30 days by default), then it can be approved; a refund or cancellation reduces or rejects it, and a refund after payout shows as a separate clawback balance. The owner marks payouts by hand and exports CSV. Everything is under the **Affiliates** tab; no panel, accounts or emails for partners. The data stays in your shop. See "Privacy of the affiliate programme" below.
 * **FAQ block and shortcode (new in 0.2):** the `aktio/faq` block and the `[aktio_faq]` shortcode (`Q: ...` / `A: ...` line by line) render questions and answers and add FAQPage schema.
 * **Catalog scan for the Aktio agent (new in 0.2):** read-only REST routes list products (brands, images, missing ALT texts, description lengths) and images without ALT text, and a route to set ALT texts in bulk (up to 50 per call, with the previous value returned for every item). Available to authenticated users with the right capabilities.
 * **Multilingual awareness (new in 0.2.1):** detects WPML and Polylang and reports the active languages (`languages`, `multilingual` in `aktio/v1/status`). The catalog scan returns the language of each product and accepts `lang`; media without ALT text carry a `lang` too; IndexNow submissions are reported per language and per URL. Without a multilingual plugin the site is a single language (the site locale).
@@ -30,12 +31,13 @@ Aktio Connector makes a WordPress site easier for search engines and AI bots to 
 * **Site Health over REST:** Site Health test results and environment information available to logged-in administrators through `aktio/v1/health`.
 * **Updates over REST with a log:** the list of available core, plugin and theme updates and a way to apply them through `aktio/v1/updates`. Every update is written to a log (the last 50 entries) shown in the settings. The plugin never rolls anything back automatically.
 
-You edit everything under **Settings → Aktio Connector**, split into tabs: Overview (what is still worth filling in, which features are provided by this plugin and which by another SEO plugin or a physical file), Business, SEO, Store, Bots & indexing, AI visibility, Tools (cache, update log) and About Aktio.
+You edit everything under **Settings → Aktio Connector**, split into tabs: Overview (what is still worth filling in, which features are provided by this plugin and which by another SEO plugin or a physical file), Business, SEO, Store, Affiliates (with WooCommerce), Bots & indexing, AI visibility, Tools (cache, update log) and About Aktio.
 
 **Privacy and security**
 
 * The plugin sends no telemetry and does not require an account. The only outgoing connection is the optional IndexNow notification, which is off by default (see "External services").
-* The REST endpoints require authentication (for example a WordPress application password) and capabilities matching the operation, such as `manage_options` or `update_plugins`. The only public endpoint is the AI visit beacon described below.
+* The affiliate programme is off by default and uses a cookie only after you turn it on (see "Privacy of the affiliate programme"). Everything else in the plugin uses no cookies.
+* The REST endpoints require authentication (for example a WordPress application password) and capabilities matching the operation, such as `manage_options` or `update_plugins`. The only public endpoints are the AI visit beacon and, when the affiliate programme is on, the affiliate click route (`aktio/v1/ref`), both described below.
 * The plugin stores no secrets. The IndexNow key is a public identifier that must be readable by search engines by design.
 
 **Privacy of AI visit measurement**
@@ -48,6 +50,18 @@ You edit everything under **Settings → Aktio Connector**, split into tabs: Ove
 * Only visits from bots and AI sources on the built-in list are counted. A visit from any other source is not recorded at all.
 * Page caches can hide bot visits, so the numbers may be lower than the real ones.
 * Uninstalling the plugin removes the table and the scheduled tasks.
+
+**Privacy of the affiliate programme**
+
+This section applies only when you turn the affiliate programme on. It is separate from AI visit measurement above, which stays cookieless.
+
+* **Cookie:** `aktio_ref`. Purpose: remember which affiliate referred the visitor so that an order placed later can be attributed to them. It holds the affiliate's code, a timestamp and a signature (`code.timestamp.HMAC`); it contains nothing about the visitor. It is set by the server with `HttpOnly` and `SameSite=Lax` (and `Secure` on HTTPS) only when a visitor opens an affiliate link, and lasts as long as the attribution window you choose (30 days by default, 1 to 365). A new affiliate link replaces it. A forged or expired cookie does not attribute an order.
+* **No IP address is stored.** To count one visitor's repeated clicks once, a keyed hash (HMAC) of the visitor's IP address and the affiliate code is kept in a transient for 10 minutes and expires on its own. The address itself is never written anywhere. Daily click counts per affiliate are kept for 400 days, without any visitor identifier.
+* **Consent:** the plugin has no consent banner. When you turn the programme on you must choose a mode. "WP Consent API": the link is tracked only after the visitor allows marketing cookies through a plugin that provides the WP Consent API (without such a plugin, links are not tracked; coupons still work). "Self-managed": you confirm that you are responsible for consent on your site, and the filter `aktio_connector_affiliate_can_track` lets you connect your own banner. In the self-managed mode the cookie is set as soon as an affiliate link is opened, so get the legal assessment right for your country (for example ePrivacy rules) before you use it.
+* **Personal data of affiliates:** the name and optional email you enter for an affiliate, and the commissions of orders attributed to them (order number, amounts). WordPress's personal data export and erase tools cover an affiliate by email: erasing clears the name, email and contact ID, pauses the affiliate and keeps the commission amounts as a settlement record. The affiliate code is chosen by you and may be built from the name, so check it when you erase someone.
+* **Orders:** the plugin reads the order total, billing email (only to detect an affiliate buying from their own link; it is not stored) and coupon codes through the WooCommerce order API. It adds no personal data to the order.
+* **Uninstalling** the plugin keeps the affiliate tables (partners, commissions, click counts), because they are your settlement history, unless you tick "Delete all affiliate data when the plugin is deleted" in the Affiliates tab. The scheduled task and the short-lived transients are always removed.
+* **Limits to know about:** the link works through a small script, so visitors with JavaScript turned off are not tracked. The cookie is set by the server in an HTTP header (not by JavaScript), which is the case Safari's tracking prevention treats most gently, but the cookie lifetime in Safari was not verified in testing (no WebKit browser was available), so in Safari the attribution may last shorter than the window you set. Click counts are an underestimate behind Cloudflare or another reverse proxy, because the 10-minute deduplication sees the proxy's address instead of the visitor's. A refund's share of the commission is measured against the order total, so a refund of shipping also reduces the commission. A shop whose orders end in a custom status after "completed" approves commissions manually. Commissions are not created for orders added by hand in the admin or for subscription renewals.
 
 **Working with Aktio**
 
@@ -106,9 +120,23 @@ The default brand goes through WordPress text sanitization: HTML tags are stripp
 
 = Does AI visit measurement use cookies or store IP addresses? =
 
-No cookies, no visitor identifiers and no stored IP addresses. See "Privacy of AI visit measurement" above.
+No cookies, no visitor identifiers and no stored IP addresses. See "Privacy of AI visit measurement" above. This is about AI visit measurement only: the optional affiliate programme, when you turn it on, sets the `aktio_ref` cookie as described in "Privacy of the affiliate programme".
+
+= Does the affiliate programme work with a page cache? =
+
+Yes. The link is read by a small script in the browser, so a cached page still sets the cookie. The `ref` parameter is removed from the address after the click, so the canonical URL and shared links stay clean.
+
+= What happens to affiliate data when I delete the plugin? =
+
+It stays in the database unless you tick "Delete all affiliate data when the plugin is deleted" in the Affiliates tab before deleting the plugin.
 
 == Changelog ==
+
+= 0.3.0 =
+* New: affiliate programme for WooCommerce (off by default): partners with codes, links (`?ref=`) and coupons, attribution at classic and block checkout, commissions that follow order status (hold period, approval, refunds, clawback after payout), manual payouts, CSV export and the **Affiliates** tab in the settings.
+* New: REST routes `aktio/v1/affiliates*` for Aktio, and the public click route `aktio/v1/ref`.
+* New: WordPress personal data export and erase tools cover affiliates by email.
+* New: "Privacy of the affiliate programme" section; AI visit measurement is unchanged and still cookieless.
 
 = 0.2.2 =
 * New: settings screen in tabs (Overview with a to-do list, Business, SEO, Store, Bots & indexing, AI visibility, Tools, About Aktio), pick lists instead of typed codes, opening hours and location fields, AI bots as switches with descriptions, Aktio logo.
@@ -144,6 +172,9 @@ No cookies, no visitor identifiers and no stored IP addresses. See "Privacy of A
 * First release: schema.org, AI bots in robots.txt, llms.txt, Site Health and updates over REST with a log, settings screen.
 
 == Upgrade Notice ==
+
+= 0.3.0 =
+Adds an optional affiliate programme (off by default). Three database tables are created on update. Nothing changes until you turn it on.
 
 = 0.2.0 =
 Adds basic SEO, IndexNow (off by default), AI visit measurement and more. A database table is created on update.

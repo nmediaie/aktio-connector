@@ -328,6 +328,17 @@ class Store {
 		return array_map( array( __CLASS__, 'affiliate_row' ), is_array( $rows ) ? $rows : array() );
 	}
 
+	/** Partnerzy o danym e-mailu (po normalizacji do małych liter); pusty e-mail nie pasuje do nikogo. */
+	public static function affiliates_by_email( string $email ): array {
+		global $wpdb;
+		$email = strtolower( trim( $email ) );
+		if ( '' === $email ) {
+			return array();
+		}
+		$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM ' . self::affiliates_table() . ' WHERE email = %s ORDER BY id ASC', $email ), ARRAY_A ); // phpcs:ignore WordPress.DB
+		return array_map( array( __CLASS__, 'affiliate_row' ), is_array( $rows ) ? $rows : array() );
+	}
+
 	private static function affiliate_row( array $row ): array {
 		$row['id']      = (int) $row['id'];
 		$row['rate_bp'] = null === $row['rate_bp'] ? null : (int) $row['rate_bp'];
@@ -425,6 +436,16 @@ class Store {
 		$coupon->delete_meta_data( self::COUPON_META );
 		$coupon->save();
 		return true;
+	}
+
+	/**
+	 * Błąd, gdy kupon należy już do innego partnera niż $affiliate_id (jedna reguła dla REST i ekranu kuponu).
+	 */
+	public static function coupon_taken_error( string $code, int $affiliate_id ): ?\WP_Error {
+		$owner = (int) self::coupon_owner( $code );
+		return 0 !== $owner && $owner !== $affiliate_id
+			? new \WP_Error( 'aktio_aff_invalid', __( 'This coupon is already assigned to another affiliate.', 'aktio-connector' ) )
+			: null;
 	}
 
 	/** Id partnera przypisanego do kuponu (0 = brak); null, gdy kuponu nie ma. */

@@ -175,9 +175,9 @@ class RestApi {
 			}
 		}
 		foreach ( $add as $code ) {
-			$owner = (int) Store::coupon_owner( $code );
-			if ( 0 !== $owner && $owner !== $id ) {
-				return new \WP_Error( 'aktio_aff_invalid', __( 'This coupon is already assigned to another affiliate.', 'aktio-connector' ) );
+			$taken = Store::coupon_taken_error( $code, $id );
+			if ( null !== $taken ) {
+				return $taken;
 			}
 		}
 		$status = is_string( $body['status'] ?? null ) ? $body['status'] : ( $existing['status'] ?? 'active' );

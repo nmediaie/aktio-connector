@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Aktio Connector
  * Description:       Schema.org, robots.txt and llms.txt for AI bots, Site Health and updates over REST — standalone or with Aktio.
- * Version:           0.2.2
+ * Version:           0.3.0
  * Requires at least: 6.2
  * Requires PHP:      7.4
  * Author:            NM Media
@@ -16,7 +16,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'AKTIO_CONNECTOR_VERSION', '0.2.2' );
+define( 'AKTIO_CONNECTOR_VERSION', '0.3.0' );
 define( 'AKTIO_CONNECTOR_FILE', __FILE__ );
 
 // Prosty autoload przez require — wtyczka działa po rozpakowaniu zipa bez vendor/.
@@ -39,10 +39,13 @@ require_once __DIR__ . '/includes/Affiliates/Tracker.php';
 require_once __DIR__ . '/includes/Affiliates/Commissions.php';
 require_once __DIR__ . '/includes/Affiliates/Attribution.php';
 require_once __DIR__ . '/includes/Affiliates/RestApi.php';
+require_once __DIR__ . '/includes/Affiliates/Csv.php';
+require_once __DIR__ . '/includes/Affiliates/Privacy.php';
 require_once __DIR__ . '/includes/Faq.php';
 require_once __DIR__ . '/includes/Catalog.php';
 require_once __DIR__ . '/includes/Crawlers.php';
 require_once __DIR__ . '/includes/Health.php';
+require_once __DIR__ . '/includes/Admin/AffiliatesTab.php';
 require_once __DIR__ . '/includes/Admin/SettingsPage.php';
 
 \AktioConnector\Language::register();
@@ -60,6 +63,7 @@ require_once __DIR__ . '/includes/Admin/SettingsPage.php';
 \AktioConnector\Affiliates\Commissions::register();
 \AktioConnector\Affiliates\Attribution::register();
 \AktioConnector\Affiliates\RestApi::register();
+\AktioConnector\Affiliates\Privacy::register();
 \AktioConnector\Faq::register();
 \AktioConnector\Crawlers::register();
 \AktioConnector\Updates::register();

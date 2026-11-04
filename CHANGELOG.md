@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.3.0 — 2026-11-04
+
+### Added
+- Affiliate programme for WooCommerce, off by default: partners (code, optional email, own rate, active/paused), links with `?ref=CODE`, coupons assigned in the coupon editor, attribution at classic and block checkout (coupon wins over cookie), commissions that follow the order status (hold period, approval after the hold, refunds, clawback after payout settled by hand), manual payouts with a reference, CSV export.
+- **Affiliates** tab in Settings → Aktio Connector (only with WooCommerce, `manage_woocommerce` for the forms): settings with a required consent mode, partners with totals and links, link generator, commissions with bulk actions and filters, CSV export of all pages of the filter (formula cells neutralised), separate clawback balances.
+- Field "Affiliate" in the coupon editor (same rules as REST: no taking another affiliate's coupon, no paused affiliate).
+- REST `aktio/v1/affiliates*` (affiliates, commissions, link, report, settings) and the public `aktio/v1/ref` click route.
+- WordPress personal data exporter and eraser for affiliates by email (erase clears name, email and contact ID, pauses the affiliate, keeps amounts).
+- Option to delete all affiliate data on uninstall (off by default: the data is settlement history).
+
+### Documentation
+- readme.txt: "Privacy of the affiliate programme" (cookie `aktio_ref`, purpose, lifetime, no IP stored, 10-minute HMAC, consent modes, owner's duty in the self-managed mode), FAQ, known limits (click counts behind a proxy, refund share measured against the order total, custom order statuses, no tracking without JavaScript).
+- AI visit measurement is unchanged and still cookieless.
+
 ## 0.2.2 — 2026-10-29
 
 ### Changed
