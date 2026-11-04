@@ -63,16 +63,17 @@ class Commissions {
 	}
 
 	/**
-	 * Zmienia stan wiersza, opcjonalnie z innymi polami. False przy niedozwolonym stanie (nic nie zapisuje).
+	 * Jedyna bramka stanu: zmienia stan z `$row['status']` na podany, opcjonalnie z innymi polami. Warunek na bieżący
+	 * status w bazie chroni przed nadpisaniem równoległej zmiany (np. ręcznego odrzucenia w trakcie crona).
+	 * False, gdy stan jest niedozwolony, wiersz ma już inny status albo zapis się nie udał.
 	 */
-	public static function transition( int $id, string $status, string $reason = '', array $fields = array() ): bool {
+	public static function transition( array $row, string $status, string $reason = '', array $fields = array() ): bool {
 		if ( ! self::valid_state( $status, $reason ) ) {
 			return false;
 		}
 		$fields['status'] = $status;
 		$fields['reason'] = $reason;
-		Store::update_commission( $id, $fields );
-		return true;
+		return Store::update_commission_if_status( $row['id'], $row['status'], $fields );
 	}
 
 	private static function valid_state( string $status, string $reason ): bool {
@@ -90,7 +91,7 @@ class Commissions {
 
 			if ( in_array( $to, self::ORDER_REJECTING, true ) ) {
 				if ( 'rejected' !== $row['status'] ) {
-					self::transition( $row['id'], 'rejected', 'order_status' );
+					self::transition( $row, 'rejected', 'order_status' );
 				}
 				return;
 			}
@@ -104,7 +105,7 @@ class Commissions {
 			}
 
 			if ( 'pending' === $row['status'] && 'completed' === $to ) {
-				Store::update_commission( $row['id'], array( 'approve_after' => self::approve_after() ) );
+				Store::update_commission_if_status( $row['id'], 'pending', array( 'approve_after' => self::approve_after() ) );
 			}
 		} catch ( \Throwable $e ) {
 			self::log_error( 'status change', $order_id, $e );
@@ -117,7 +118,7 @@ class Commissions {
 		if ( null !== $order ) {
 			self::recalculate( $row, $order );
 		}
-		self::transition( $row['id'], 'pending', '', array( 'approve_after' => 'completed' === $to ? self::approve_after() : null ) );
+		self::transition( $row, 'pending', '', array( 'approve_after' => 'completed' === $to ? self::approve_after() : null ) );
 	}
 
 	public static function on_refund( int $order_id ): void {
@@ -149,24 +150,21 @@ class Commissions {
 
 	/**
 	 * Przelicza wiersz według bieżącej sumy zwrotów zamówienia (zwroty są skumulowane, liczone od `base_original`).
-	 * Wiersz `paid` zachowuje podstawę i prowizję, zmienia się tylko `clawback`.
+	 * Wiersz `paid` zachowuje podstawę i prowizję, zmienia się tylko `clawback`; rozliczenie potrącenia zostaje
+	 * w swoich polach, a różnicę pokazuje clawback_balance().
+	 *
+	 * @throws \RuntimeException Gdy wyliczonych kwot nie udało się zapisać (błąd bazy albo wiersz zmienił już status):
+	 *                           wywołujący nie może iść dalej ze starą kwotą.
 	 */
 	public static function recalculate( array $row, \WC_Order $order ): void {
 		$base       = (float) $row['base_original'] * self::kept_share( $order );
 		$commission = self::commission_amount( $base, (int) $row['rate_bp'] );
 
 		if ( 'paid' === $row['status'] ) {
-			$old = (float) $row['clawback'];
-			$new = max( 0.0, (float) $row['commission_paid'] - $commission );
-			if ( self::money( $new ) === self::money( $old ) ) {
-				return;
+			$clawback = self::money( max( 0.0, (float) $row['commission_paid'] - $commission ) );
+			if ( $clawback !== self::money( (float) $row['clawback'] ) ) {
+				self::save_amounts( $row, array( 'clawback' => $clawback ) );
 			}
-			$fields = array( 'clawback' => self::money( $new ) );
-			if ( $new > $old ) {
-				$fields['clawback_settled_at'] = null;
-				$fields['clawback_ref']        = '';
-			}
-			Store::update_commission( $row['id'], $fields );
 			return;
 		}
 
@@ -175,8 +173,22 @@ class Commissions {
 			'commission'  => self::money( $commission ),
 		);
 		if ( $fields['base_amount'] !== self::money( (float) $row['base_amount'] ) || $fields['commission'] !== self::money( (float) $row['commission'] ) ) {
-			Store::update_commission( $row['id'], $fields );
+			self::save_amounts( $row, $fields );
 		}
+	}
+
+	private static function save_amounts( array $row, array $fields ): void {
+		if ( ! Store::update_commission_if_status( $row['id'], $row['status'], $fields ) ) {
+			throw new \RuntimeException( 'Commission amounts were not saved.' );
+		}
+	}
+
+	/**
+	 * Potrącenie, które zostało do rozliczenia: `clawback` − `clawback_settled_amount`.
+	 * Ujemne saldo znaczy, że rozliczono więcej, niż ostatecznie należało (np. zwrot usunięty po rozliczeniu).
+	 */
+	public static function clawback_balance( array $row ): string {
+		return self::money( (float) $row['clawback'] - (float) $row['clawback_settled_amount'] );
 	}
 
 	/** Część zamówienia, która została po zwrotach: 1 − min(1, zwroty / suma). */
@@ -196,7 +208,7 @@ class Commissions {
 	 * Kwota do kolumny DECIMAL(19,4). Zawsze z kropką: na PHP 7.4 rzutowanie float na string zależy od locale.
 	 */
 	public static function money( float $amount ): string {
-		return number_format( $amount, 4, '.', '' );
+		return number_format( round( $amount, 4 ) + 0.0, 4, '.', '' ); // + 0.0: PHP 7.4 pisałby ujemne zero jako -0.0000.
 	}
 
 	// -------------------------------------------------------------------- Uzgadnianie
@@ -205,6 +217,11 @@ class Commissions {
 	 * Uzgadnia wiersz z aktualnym stanem zamówienia (hooki nie odpalają się przy wyłączonym WooCommerce lub wtyczce).
 	 * Zwraca `order_missing` (bez zmian), `rejected` albo `ok`. Wiersz `paid` zostaje `paid`, zwrot idzie do `clawback`.
 	 * Odrzucony wiersz zachowuje swój powód, np. `manual`.
+	 *
+	 * `ok` opisuje zamówienie, nie wiersz: wiersz `rejected` na żywym zamówieniu też dostaje `ok` i zostaje `rejected`.
+	 * `ok` nie znaczy więc „można wypłacić”: wywołujący sprawdza też status wiersza i zapisuje przez transition().
+	 *
+	 * @throws \RuntimeException Z recalculate(), gdy kwot nie udało się zapisać.
 	 */
 	public static function reconcile( array $row, ?\WC_Order $order ): string {
 		if ( null === $order ) {
@@ -212,7 +229,7 @@ class Commissions {
 		}
 		if ( 'paid' !== $row['status'] && in_array( $order->get_status(), self::ORDER_REJECTING, true ) ) {
 			if ( 'rejected' !== $row['status'] ) {
-				self::transition( $row['id'], 'rejected', 'order_status' );
+				self::transition( $row, 'rejected', 'order_status' );
 			}
 			return 'rejected';
 		}
@@ -240,8 +257,7 @@ class Commissions {
 				$after_id = $row['id'];
 				try {
 					$order = self::order( $row['order_id'] );
-					if ( 'ok' === self::reconcile( $row, $order ) && $order->has_status( 'completed' ) ) {
-						self::transition( $row['id'], 'approved' );
+					if ( 'ok' === self::reconcile( $row, $order ) && $order->has_status( 'completed' ) && self::transition( $row, 'approved' ) ) {
 						++$approved;
 					}
 				} catch ( \Throwable $e ) {
@@ -252,8 +268,53 @@ class Commissions {
 		return $approved;
 	}
 
-	/** Dzienny cron: zatwierdzanie i sprzątanie. Każdy krok osobno, by błąd jednego nie zatrzymał drugiego. */
+	/**
+	 * Nadrabia zmiany zamówień, które minęły hooki (wyłączony WooCommerce lub wtyczka): `pending` bez terminu dostaje
+	 * termin albo odrzucenie, a `rejected` z powodu `order_status` wraca, gdy zamówienie wróciło. Usunięte zamówienie: bez zmian.
+	 */
+	public static function sync_missed(): void {
+		if ( ! Store::available() ) {
+			return;
+		}
+		$after_id = 0;
+		do {
+			$rows = Store::commissions_to_sync( $after_id, Store::MAX_PER_PAGE );
+			foreach ( $rows as $row ) {
+				$after_id = $row['id'];
+				try {
+					self::sync_row( $row, self::order( $row['order_id'] ) );
+				} catch ( \Throwable $e ) {
+					self::log_error( 'sync', $row['order_id'], $e );
+				}
+			}
+		} while ( count( $rows ) === Store::MAX_PER_PAGE );
+	}
+
+	private static function sync_row( array $row, ?\WC_Order $order ): void {
+		if ( null === $order ) {
+			return;
+		}
+		if ( 'rejected' === $row['status'] ) {
+			if ( in_array( $order->get_status(), self::ORDER_RESTORING, true ) ) {
+				self::restore( $row, $order->get_status() );
+			}
+			return;
+		}
+		if ( 'ok' === self::reconcile( $row, $order ) && $order->has_status( 'completed' ) ) {
+			Store::update_commission_if_status( $row['id'], 'pending', array( 'approve_after' => self::approve_after() ) );
+		}
+	}
+
+	/**
+	 * Dzienny cron: nadrabianie, zatwierdzanie i sprzątanie. Każdy krok osobno, by błąd jednego nie zatrzymał następnych.
+	 * Nadrabianie jest pierwsze, więc przy karencji 0 wiersz zatwierdza się w tym samym przebiegu.
+	 */
 	public static function run_daily(): void {
+		try {
+			self::sync_missed();
+		} catch ( \Throwable $e ) {
+			self::log_error( 'daily sync', 0, $e );
+		}
 		try {
 			self::approve_due();
 		} catch ( \Throwable $e ) {
@@ -283,12 +344,14 @@ class Commissions {
 	 * Sam log też nie może przerwać zamówienia.
 	 */
 	public static function log_error( string $context, int $order_id, \Throwable $e ): void {
+		self::log_failure( sprintf( '%s failed for order %d: %s at %s:%d', $context, $order_id, get_class( $e ), basename( $e->getFile() ), $e->getLine() ) );
+	}
+
+	/** Jak log_error, dla błędu bez wyjątku. Treść bez danych osobowych. */
+	public static function log_failure( string $message ): void {
 		try {
 			if ( function_exists( 'wc_get_logger' ) ) {
-				wc_get_logger()->error(
-					sprintf( 'Affiliates: %s failed for order %d: %s at %s:%d', $context, $order_id, get_class( $e ), basename( $e->getFile() ), $e->getLine() ),
-					array( 'source' => 'aktio-connector-affiliates' )
-				);
+				wc_get_logger()->error( 'Affiliates: ' . $message, array( 'source' => 'aktio-connector-affiliates' ) );
 			}
 		} catch ( \Throwable $ignored ) {
 			unset( $ignored );

@@ -15,7 +15,7 @@ defined( 'ABSPATH' ) || exit;
 class Store {
 
 	const SCHEMA_OPTION = 'aktio_connector_affiliates_schema';
-	const SCHEMA        = 2;
+	const SCHEMA        = 3;
 	const CRON          = 'aktio_connector_affiliates_daily';
 	const TRANSIENT     = 'aktio_ar_';
 	const COUPON_META   = '_aktio_affiliate_id';
@@ -36,6 +36,7 @@ class Store {
 		'commission',
 		'commission_paid',
 		'clawback',
+		'clawback_settled_amount',
 		'clawback_settled_at',
 		'clawback_ref',
 		'currency',
@@ -129,6 +130,7 @@ class Store {
 			commission decimal(19,4) NOT NULL DEFAULT 0,
 			commission_paid decimal(19,4) NOT NULL DEFAULT 0,
 			clawback decimal(19,4) NOT NULL DEFAULT 0,
+			clawback_settled_amount decimal(19,4) NOT NULL DEFAULT 0,
 			clawback_settled_at datetime DEFAULT NULL,
 			clawback_ref varchar(100) NOT NULL DEFAULT '',
 			currency varchar(10) NOT NULL DEFAULT '',
@@ -471,6 +473,7 @@ class Store {
 				'commission'          => '0',
 				'commission_paid'     => '0',
 				'clawback'            => '0',
+				'clawback_settled_amount' => '0',
 				'clawback_settled_at' => null,
 				'clawback_ref'        => '',
 				'currency'            => '',
@@ -499,16 +502,44 @@ class Store {
 		return (int) $wpdb->insert_id;
 	}
 
-	/** Zmienia wskazane pola wiersza (id, order_id i created_at są niezmienne). */
-	public static function update_commission( int $id, array $fields ): void {
+	/**
+	 * Zmienia wskazane pola wiersza (id, order_id i created_at są niezmienne). False tylko przy błędzie zapisu;
+	 * zapis bez zmiany wartości to sukces. Do zmiany stanu służy update_commission_if_status().
+	 */
+	public static function update_commission( int $id, array $fields ): bool {
+		return false !== self::write_commission( $id, $fields, array() );
+	}
+
+	/**
+	 * Bramka stanu: zapisuje tylko, gdy wiersz ma nadal oczekiwany status (UPDATE … WHERE id = ? AND status = ?),
+	 * więc wartość odczytana wcześniej nie nadpisze równoległej zmiany. True, gdy wiersz został zmieniony.
+	 */
+	public static function update_commission_if_status( int $id, string $expected_status, array $fields ): bool {
+		$changed = self::write_commission( $id, $fields, array( 'status' => $expected_status ) );
+		return is_int( $changed ) && $changed > 0;
+	}
+
+	/**
+	 * Liczba zmienionych wierszy albo false przy błędzie zapisu (log bez wartości pól ani komunikatu bazy).
+	 *
+	 * @return int|false
+	 */
+	private static function write_commission( int $id, array $fields, array $where ) {
 		global $wpdb;
 		unset( $fields['order_id'] );
 		$data = array_intersect_key( $fields, array_flip( self::COMMISSION_COLUMNS ) );
 		if ( array() === $data ) {
-			return;
+			return 0;
 		}
 		$data['updated_at'] = current_time( 'mysql', true );
-		$wpdb->update( self::commissions_table(), $data, array( 'id' => $id ), self::formats( $data ), array( '%d' ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+		$where              = array( 'id' => $id ) + $where;
+		$suppressed         = $wpdb->suppress_errors( true );
+		$changed            = $wpdb->update( self::commissions_table(), $data, $where, self::formats( $data ), array_merge( array( '%d' ), array_fill( 0, count( $where ) - 1, '%s' ) ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+		$wpdb->suppress_errors( $suppressed );
+		if ( false === $changed ) {
+			error_log( 'Aktio Connector affiliates: commission update failed for row ' . $id ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+		}
+		return $changed;
 	}
 
 	public static function commission_for_order( int $order_id ): ?array {
@@ -576,6 +607,16 @@ class Store {
 	public static function due_commissions( string $now, int $after_id, int $limit ): array {
 		global $wpdb;
 		$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM ' . self::commissions_table() . " WHERE status = 'pending' AND approve_after IS NOT NULL AND approve_after <= %s AND id > %d ORDER BY id ASC LIMIT %d", $now, $after_id, $limit ), ARRAY_A ); // phpcs:ignore WordPress.DB
+		return array_map( array( __CLASS__, 'commission_row' ), is_array( $rows ) ? $rows : array() );
+	}
+
+	/**
+	 * Wiersze, które mogły minąć hooki statusów: `pending` bez terminu karencji i `rejected` z powodu `order_status`.
+	 * Po id większym niż $after_id, rosnąco.
+	 */
+	public static function commissions_to_sync( int $after_id, int $limit ): array {
+		global $wpdb;
+		$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM ' . self::commissions_table() . " WHERE id > %d AND ( ( status = 'pending' AND approve_after IS NULL ) OR ( status = 'rejected' AND reason = 'order_status' ) ) ORDER BY id ASC LIMIT %d", $after_id, $limit ), ARRAY_A ); // phpcs:ignore WordPress.DB
 		return array_map( array( __CLASS__, 'commission_row' ), is_array( $rows ) ? $rows : array() );
 	}
 

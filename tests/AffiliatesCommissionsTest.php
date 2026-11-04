@@ -137,6 +137,27 @@ class AffiliatesCommissionsTest extends WP_UnitTestCase {
 		add_action( 'woocommerce_order_refunded', array( Commissions::class, 'on_refund' ) );
 	}
 
+	/** Psuje zapytania UPDATE do tabeli prowizji; z $needle tylko te, które zawierają ten tekst. */
+	private function break_updates( string $needle = '' ): callable {
+		$break = static function ( $q ) use ( $needle ) {
+			$is_update = 0 === strpos( $q, 'UPDATE `' . Store::commissions_table() );
+			return $is_update && ( '' === $needle || false !== strpos( $q, $needle ) ) ? 'UPDATE aktio_no_such_table SET x = 1' : $q;
+		};
+		add_filter( 'query', $break );
+		return $break;
+	}
+
+	/** Wykonuje $action z error_log kierowanym do pliku tymczasowego i zwraca zapisany log. */
+	private function logged_during( callable $action ): string {
+		$file = tempnam( sys_get_temp_dir(), 'aktio-log' );
+		$old  = ini_set( 'error_log', $file ); // phpcs:ignore WordPress.PHP.IniSet
+		$action();
+		ini_set( 'error_log', (string) $old ); // phpcs:ignore WordPress.PHP.IniSet
+		$logged = (string) file_get_contents( $file );
+		unlink( $file );
+		return $logged;
+	}
+
 	// ---------------------------------------------------------------- Przypisanie
 
 	public function test_commission_base_excludes_tax_shipping_discount() {
@@ -476,7 +497,7 @@ class AffiliatesCommissionsTest extends WP_UnitTestCase {
 
 	public function test_manual_reject_not_restored() {
 		list( $order, $row ) = $this->attributed();
-		$this->assertTrue( Commissions::transition( $row['id'], 'rejected', 'manual' ) );
+		$this->assertTrue( Commissions::transition( $row, 'rejected', 'manual' ) );
 
 		$this->fresh( $order )->update_status( 'cancelled' );
 		$this->assertSame( 'manual', $this->row( $order )['reason'], 'A later cancel does not overwrite the reason.' );
@@ -572,28 +593,53 @@ class AffiliatesCommissionsTest extends WP_UnitTestCase {
 		$this->assertSame( 8.0, (float) $after['clawback'] );
 	}
 
-	public function test_clawback_growth_clears_settlement_and_same_amount_keeps_it() {
+	public function test_clawback_growth_keeps_settlement_and_leaves_a_balance() {
 		list( $order, $row ) = $this->attributed();
 		$this->make_paid( $row );
 		$this->refund( $this->fresh( $order ), 20.0 );
 		Store::update_commission(
 			$row['id'],
 			array(
-				'clawback_settled_at' => '2026-10-01 10:00:00',
-				'clawback_ref'        => 'NOTE-1',
+				'clawback_settled_amount' => '2.0000',
+				'clawback_settled_at'     => '2026-10-01 10:00:00',
+				'clawback_ref'            => 'NOTE-1',
+			)
+		);
+		$this->assertSame( '0.0000', Commissions::clawback_balance( $this->row( $order ) ) );
+
+		$this->refund( $this->fresh( $order ), 20.0 );
+
+		$grown = $this->row( $order );
+		$this->assertSame( 4.0, (float) $grown['clawback'] );
+		$this->assertSame( '2.0000', Commissions::clawback_balance( $grown ) );
+		$this->assertSame( 2.0, (float) $grown['clawback_settled_amount'] );
+		$this->assertSame( '2026-10-01 10:00:00', $grown['clawback_settled_at'], 'The earlier settlement stays on record.' );
+		$this->assertSame( 'NOTE-1', $grown['clawback_ref'] );
+	}
+
+	public function test_clawback_balance_goes_negative_when_refund_is_deleted_after_settlement() {
+		list( $order, $row ) = $this->attributed();
+		$this->make_paid( $row );
+		$this->refund( $this->fresh( $order ), 20.0 );
+		$second    = $this->refund( $this->fresh( $order ), 20.0 );
+		$second_id = $second->get_id();
+		$this->assertSame( 4.0, (float) $this->row( $order )['clawback'] );
+		Store::update_commission(
+			$row['id'],
+			array(
+				'clawback_settled_amount' => '4.0000',
+				'clawback_settled_at'     => '2026-10-01 10:00:00',
+				'clawback_ref'            => 'NOTE-1',
 			)
 		);
 
-		Commissions::on_refund( $order->get_id() );
-		$same = $this->row( $order );
-		$this->assertSame( '2026-10-01 10:00:00', $same['clawback_settled_at'], 'The same clawback stays settled.' );
-		$this->assertSame( 'NOTE-1', $same['clawback_ref'] );
+		$second->delete( true );
+		do_action( 'woocommerce_refund_deleted', $second_id, $order->get_id() );
 
-		$this->refund( $this->fresh( $order ), 20.0 );
-		$grown = $this->row( $order );
-		$this->assertSame( 4.0, (float) $grown['clawback'] );
-		$this->assertNull( $grown['clawback_settled_at'] );
-		$this->assertSame( '', $grown['clawback_ref'] );
+		$after = $this->row( $order );
+		$this->assertSame( 2.0, (float) $after['clawback'] );
+		$this->assertSame( '-2.0000', Commissions::clawback_balance( $after ), 'The partner is owed the overpaid settlement.' );
+		$this->assertSame( 'NOTE-1', $after['clawback_ref'] );
 	}
 
 	public function test_clawback_counts_only_what_was_paid() {
@@ -712,11 +758,22 @@ class AffiliatesCommissionsTest extends WP_UnitTestCase {
 		$after = $this->row( $order );
 		$this->assertSame( 'rejected', $after['status'] );
 		$this->assertSame( 'order_status', $after['reason'] );
+
+		// `ok` opisuje zamówienie, nie wiersz: odrzucony wiersz na żywym zamówieniu nie staje się płatny.
+		list( $live, $manual ) = $this->attributed();
+		Commissions::transition( $manual, 'rejected', 'manual' );
+		$this->fresh( $live )->update_status( 'completed' );
+		$rejected = $this->row( $live );
+		$this->assertSame( 'ok', Commissions::reconcile( $rejected, $this->fresh( $live ) ) );
+		$this->assertSame( 'rejected', $this->row( $live )['status'] );
+		$this->past_due( $rejected );
+		$this->assertSame( 0, Commissions::approve_due() );
+		$this->assertSame( 'rejected', $this->row( $live )['status'], 'The cron does not approve it either.' );
 	}
 
 	public function test_reconcile_keeps_manual_reason_and_paid_state() {
 		list( $manual, $row ) = $this->attributed();
-		Commissions::transition( $row['id'], 'rejected', 'manual' );
+		Commissions::transition( $row, 'rejected', 'manual' );
 		$this->without_hooks(
 			function () use ( $manual ) {
 				$this->fresh( $manual )->update_status( 'cancelled' );
@@ -738,17 +795,289 @@ class AffiliatesCommissionsTest extends WP_UnitTestCase {
 		$this->assertSame( 8.0, (float) $after['clawback'] );
 	}
 
+	// ------------------------------------------------- Wiersze, które minęły hooki
+
+	public function test_cron_sets_term_for_order_completed_while_hooks_off() {
+		$this->settings( array( 'hold_days' => 30 ) );
+		list( $order ) = $this->attributed();
+		$this->without_hooks(
+			function () use ( $order ) {
+				$this->fresh( $order )->update_status( 'completed' );
+			}
+		);
+		$this->assertNull( $this->row( $order )['approve_after'], 'The hooks really were off.' );
+
+		$before = time();
+		do_action( Commissions::CRON );
+
+		$after = $this->row( $order );
+		$this->assertSame( 'pending', $after['status'] );
+		$this->assertEqualsWithDelta( $before + 30 * DAY_IN_SECONDS, strtotime( $after['approve_after'] . ' UTC' ), 5 );
+
+		$this->past_due( $after );
+		do_action( Commissions::CRON );
+		$this->assertSame( 'approved', $this->row( $order )['status'] );
+	}
+
+	public function test_cron_leaves_null_term_row_of_processing_order_waiting() {
+		list( $order ) = $this->attributed();
+		$this->fresh( $order )->update_status( 'processing' );
+		do_action( Commissions::CRON );
+		$after = $this->row( $order );
+		$this->assertSame( 'pending', $after['status'] );
+		$this->assertNull( $after['approve_after'] );
+	}
+
+	public function test_cron_rejects_null_term_row_refunded_while_hooks_off() {
+		list( $order ) = $this->attributed();
+		$this->without_hooks(
+			function () use ( $order ) {
+				$this->fresh( $order )->update_status( 'refunded' );
+			}
+		);
+		$this->assertSame( 'pending', $this->row( $order )['status'], 'The hooks really were off.' );
+
+		do_action( Commissions::CRON );
+
+		$after = $this->row( $order );
+		$this->assertSame( 'rejected', $after['status'] );
+		$this->assertSame( 'order_status', $after['reason'] );
+	}
+
+	public function test_cron_restores_row_whose_order_returned_while_hooks_off() {
+		$this->settings( array( 'hold_days' => 30 ) );
+		list( $processing ) = $this->attributed();
+		list( $completed )  = $this->attributed();
+		list( $still )      = $this->attributed();
+		foreach ( array( $processing, $completed, $still ) as $order ) {
+			$this->fresh( $order )->update_status( 'cancelled' );
+			$this->assertSame( 'rejected', $this->row( $order )['status'] );
+		}
+		$this->without_hooks(
+			function () use ( $processing, $completed ) {
+				$this->fresh( $processing )->update_status( 'processing' );
+				$this->fresh( $completed )->update_status( 'completed' );
+			}
+		);
+
+		do_action( Commissions::CRON );
+
+		$back = $this->row( $processing );
+		$this->assertSame( 'pending', $back['status'] );
+		$this->assertSame( '', $back['reason'] );
+		$this->assertNull( $back['approve_after'], 'Only completed starts the hold.' );
+
+		$done = $this->row( $completed );
+		$this->assertSame( 'pending', $done['status'] );
+		$this->assertNotNull( $done['approve_after'] );
+		$this->assertGreaterThan( time() + 29 * DAY_IN_SECONDS, strtotime( $done['approve_after'] . ' UTC' ) );
+
+		$this->assertSame( 'rejected', $this->row( $still )['status'], 'The order is still cancelled.' );
+	}
+
+	public function test_cron_scan_does_not_restore_manual_or_self_referral() {
+		list( $manual, $row ) = $this->attributed();
+		Commissions::transition( $row, 'rejected', 'manual' );
+		$partner = $this->affiliate( array( 'email' => 'jan@x.pl' ) );
+		$this->set_cookie( $partner['code'] );
+		$self = $this->order( 80.0, 'jan@x.pl' );
+		Attribution::on_order( $self );
+		unset( $_COOKIE[ Tracker::COOKIE ] );
+		$this->fresh( $manual )->update_status( 'completed' );
+		$this->fresh( $self )->update_status( 'completed' );
+
+		do_action( Commissions::CRON );
+
+		$this->assertSame( 'manual', $this->row( $manual )['reason'] );
+		$this->assertSame( 'rejected', $this->row( $manual )['status'] );
+		$this->assertSame( 'self_referral', $this->row( $self )['reason'] );
+		$this->assertSame( 'rejected', $this->row( $self )['status'] );
+	}
+
+	public function test_cron_scan_skips_deleted_order_and_continues() {
+		$this->settings( array( 'hold_days' => 30 ) );
+		list( $gone ) = $this->attributed();
+		$gone_id      = $gone->get_id();
+		list( $live ) = $this->attributed();
+		$this->without_hooks(
+			function () use ( $live ) {
+				$this->fresh( $live )->update_status( 'completed' );
+			}
+		);
+		$this->fresh( $gone )->delete( true );
+
+		do_action( Commissions::CRON );
+
+		$this->assertSame( 'pending', Store::commission_for_order( $gone_id )['status'] );
+		$this->assertNull( Store::commission_for_order( $gone_id )['approve_after'] );
+		$this->assertNotNull( $this->row( $live )['approve_after'] );
+	}
+
+	// ------------------------------------------------------- Warunkowy zapis stanu
+
+	public function test_stale_row_does_not_transition() {
+		list( $order, $stale ) = $this->attributed();
+		Store::update_commission(
+			$stale['id'],
+			array(
+				'status' => 'rejected',
+				'reason' => 'manual',
+			)
+		);
+
+		$this->assertFalse( Commissions::transition( $stale, 'approved' ) );
+
+		$after = $this->row( $order );
+		$this->assertSame( 'rejected', $after['status'] );
+		$this->assertSame( 'manual', $after['reason'] );
+	}
+
+	public function test_manual_reject_during_approve_batch_is_not_overwritten() {
+		$this->settings( array( 'hold_days' => 0 ) );
+		list( $order, $row ) = $this->attributed();
+		$this->fresh( $order )->update_status( 'completed' );
+		// Odrzucenie ręczne wchodzi między odczytem wiersza w approve_due a jego zapisem.
+		add_filter(
+			'woocommerce_order_get_status',
+			static function ( $status ) use ( $row ) {
+				Store::update_commission(
+					$row['id'],
+					array(
+						'status' => 'rejected',
+						'reason' => 'manual',
+					)
+				);
+				return $status;
+			}
+		);
+
+		$approved = Commissions::approve_due();
+		remove_all_filters( 'woocommerce_order_get_status' );
+
+		$this->assertSame( 0, $approved );
+		$after = $this->row( $order );
+		$this->assertSame( 'rejected', $after['status'] );
+		$this->assertSame( 'manual', $after['reason'] );
+	}
+
+	public function test_failed_write_is_not_counted_and_is_logged() {
+		$this->settings( array( 'hold_days' => 0 ) );
+		list( $order, $row ) = $this->attributed( 80.0, array( 'email' => 'partner@x.pl' ) );
+		$this->fresh( $order )->update_status( 'completed' );
+
+		$approved = null;
+		$result   = null;
+		$break    = $this->break_updates();
+		$logged   = $this->logged_during(
+			static function () use ( &$approved, &$result, $row ) {
+				$approved = Commissions::approve_due();
+				$result   = Commissions::transition( $row, 'rejected', 'manual' );
+			}
+		);
+		remove_filter( 'query', $break );
+
+		$this->assertSame( 0, $approved );
+		$this->assertFalse( $result );
+		$this->assertSame( 'pending', $this->row( $order )['status'] );
+		$this->assertStringContainsString( 'commission update failed for row ' . $row['id'], $logged );
+		$this->assertStringNotContainsString( '@', $logged, 'No personal data in the log.' );
+	}
+
+	public function test_failed_recalculation_stops_approval() {
+		$this->settings( array( 'hold_days' => 0 ) );
+		list( $order ) = $this->attributed();
+		$this->fresh( $order )->update_status( 'completed' );
+		$this->without_hooks(
+			function () use ( $order ) {
+				$this->refund( $this->fresh( $order ), 20.0 );
+			}
+		);
+
+		$approved = null;
+		$break    = $this->break_updates( 'base_amount' );
+		$this->logged_during(
+			static function () use ( &$approved ) {
+				$approved = Commissions::approve_due();
+			}
+		);
+		remove_filter( 'query', $break );
+
+		$this->assertSame( 0, $approved, 'Never approve an amount that could not be corrected.' );
+		$this->assertSame( 'pending', $this->row( $order )['status'] );
+		$this->assertSame( 1, Commissions::approve_due(), 'The next run retries.' );
+		$this->assertSame( 6.0, (float) $this->row( $order )['commission'] );
+	}
+
+	public function test_failed_commission_insert_is_logged_and_does_not_break_the_order() {
+		$partner = $this->affiliate();
+		$this->set_cookie( $partner['code'] );
+		$order = $this->order();
+		$break = static function ( $q ) {
+			return 0 === strpos( $q, 'INSERT INTO `' . Store::commissions_table() ) ? 'INSERT INTO aktio_no_such_table (x) VALUES (1)' : $q;
+		};
+		$seen  = array();
+		add_filter( 'query', $break );
+		add_filter(
+			'woocommerce_logger_log_message',
+			static function ( $message ) use ( &$seen ) {
+				$seen[] = $message;
+				return $message;
+			}
+		);
+		$this->logged_during(
+			static function () use ( $order ) {
+				Attribution::on_order( $order );
+			}
+		);
+		remove_filter( 'query', $break );
+
+		$this->assertNull( Store::commission_for_order( $order->get_id() ) );
+		$this->assertStringContainsString( 'commission was not saved for order ' . $order->get_id(), implode( ' ', $seen ) );
+	}
+
+	public function test_lost_insert_race_is_not_logged_as_failure() {
+		$partner = $this->affiliate();
+		$this->set_cookie( $partner['code'] );
+		$order = $this->order();
+		$seen  = array();
+		add_filter(
+			'woocommerce_logger_log_message',
+			static function ( $message ) use ( &$seen ) {
+				$seen[] = $message;
+				return $message;
+			}
+		);
+		// Inne żądanie wstawia wiersz między sprawdzeniem w on_order a insertem.
+		add_filter(
+			'aktio_connector_affiliate_resolve',
+			static function ( $found ) use ( $order, $partner ) {
+				Store::insert_commission(
+					array(
+						'order_id'     => $order->get_id(),
+						'affiliate_id' => $partner['id'],
+					)
+				);
+				return $found;
+			}
+		);
+
+		Attribution::on_order( $order );
+
+		$this->assertSame( array(), $seen );
+		$this->assertSame( 1, Store::query_commissions( array() )['total'] );
+	}
+
 	// ------------------------------------------------------------- Stany i podpięcia
 
 	public function test_transition_refuses_unknown_status_and_reason() {
 		list( $order, $row ) = $this->attributed();
 
-		$this->assertFalse( Commissions::transition( $row['id'], 'cancelled' ) );
-		$this->assertFalse( Commissions::transition( $row['id'], 'rejected', 'because' ) );
+		$this->assertFalse( Commissions::transition( $row, 'cancelled' ) );
+		$this->assertFalse( Commissions::transition( $row, 'rejected', 'because' ) );
 		$this->assertSame( 'pending', $this->row( $order )['status'] );
 		$this->assertSame( '', $this->row( $order )['reason'] );
 
-		$this->assertTrue( Commissions::transition( $row['id'], 'approved' ) );
+		$this->assertTrue( Commissions::transition( $row, 'approved' ) );
 		$this->assertSame( 'approved', $this->row( $order )['status'] );
 	}
 

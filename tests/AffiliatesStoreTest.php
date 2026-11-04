@@ -250,6 +250,60 @@ class AffiliatesStoreTest extends WP_UnitTestCase {
 		unlink( $log );
 	}
 
+	public function test_update_commission_reports_failure_and_logs_no_values() {
+		$id  = Store::save_affiliate( array( 'name' => 'Ola' ) );
+		$row = Store::insert_commission( array( 'order_id' => 711, 'affiliate_id' => $id ) );
+
+		$this->assertTrue( Store::update_commission( $row, array( 'payout_ref' => 'A' ) ) );
+		$this->assertTrue( Store::update_commission( $row, array( 'payout_ref' => 'A' ) ), 'No change is not a failure.' );
+
+		$log = tempnam( sys_get_temp_dir(), 'aktio-log' );
+		$old = ini_set( 'error_log', $log ); // phpcs:ignore WordPress.PHP.IniSet
+		$break = function ( $q ) {
+			return 0 === strpos( $q, 'UPDATE `' . Store::commissions_table() ) ? 'UPDATE aktio_no_such_table SET x = 1' : $q;
+		};
+		add_filter( 'query', $break );
+		$this->assertFalse( Store::update_commission( $row, array( 'payout_ref' => 'SECRET-REF' ) ) );
+		$this->assertFalse( Store::update_commission_if_status( $row, 'pending', array( 'payout_ref' => 'SECRET-REF' ) ) );
+		remove_filter( 'query', $break );
+		ini_set( 'error_log', (string) $old ); // phpcs:ignore WordPress.PHP.IniSet
+		$logged = (string) file_get_contents( $log );
+		unlink( $log );
+
+		$this->assertStringContainsString( 'commission update failed for row ' . $row, $logged );
+		$this->assertStringNotContainsString( 'SECRET-REF', $logged );
+	}
+
+	public function test_update_commission_if_status_writes_only_on_expected_status() {
+		$id  = Store::save_affiliate( array( 'name' => 'Ola' ) );
+		$row = Store::insert_commission( array( 'order_id' => 712, 'affiliate_id' => $id ) );
+
+		$this->assertFalse( Store::update_commission_if_status( $row, 'approved', array( 'status' => 'paid' ) ) );
+		$this->assertSame( 'pending', Store::commission_for_order( 712 )['status'] );
+
+		$this->assertTrue( Store::update_commission_if_status( $row, 'pending', array( 'status' => 'approved', 'order_id' => 999 ) ) );
+		$after = Store::commission_for_order( 712 );
+		$this->assertSame( 'approved', $after['status'] );
+		$this->assertSame( $row, $after['id'], 'order_id stays immutable.' );
+
+		$this->assertFalse( Store::update_commission_if_status( $row, 'approved', array( 'unknown_column' => 'x' ) ), 'Nothing to write.' );
+	}
+
+	public function test_schema_upgrade_adds_clawback_settled_amount() {
+		global $wpdb;
+		$table = Store::commissions_table();
+		$wpdb->query( "ALTER TABLE {$table} DROP COLUMN clawback_settled_amount" ); // phpcs:ignore WordPress.DB
+		update_option( Store::SCHEMA_OPTION, '2', false );
+
+		Store::maybe_install();
+
+		$column = $wpdb->get_row( "SHOW COLUMNS FROM {$table} LIKE 'clawback_settled_amount'", ARRAY_A ); // phpcs:ignore WordPress.DB
+		$this->assertSame( 'decimal(19,4)', $column['Type'] );
+		$this->assertSame( 'NO', $column['Null'] );
+		$this->assertSame( (string) Store::SCHEMA, get_option( Store::SCHEMA_OPTION ) );
+		$this->assertSame( 3, Store::SCHEMA );
+	}
+
 	public function test_save_affiliate_failure_is_not_reported_as_code_taken() {
 		$break = function ( $q ) {
 			return 0 === strpos( $q, 'INSERT INTO `' . Store::affiliates_table() ) ? 'INSERT INTO aktio_no_such_table (x) VALUES (1)' : $q;

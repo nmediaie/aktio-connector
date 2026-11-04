@@ -39,7 +39,7 @@ class Attribution {
 			$rate_bp   = null !== ( $affiliate['rate_bp'] ?? null ) ? (int) $affiliate['rate_bp'] : (int) Settings::get()['affiliates']['rate_bp'];
 			$self      = self::is_self_referral( $order, $affiliate );
 
-			Commissions::create(
+			$created = Commissions::create(
 				array(
 					'order_id'      => $order->get_id(),
 					'affiliate_id'  => (int) $affiliate['id'],
@@ -53,6 +53,10 @@ class Attribution {
 					'currency'      => $order->get_currency(),
 				)
 			);
+			// 0 z istniejącym wierszem to przegrany wyścig dwóch hooków, nie błąd.
+			if ( 0 === $created && null === Store::commission_for_order( $order->get_id() ) ) {
+				Commissions::log_failure( 'commission was not saved for order ' . $order->get_id() );
+			}
 		} catch ( \Throwable $e ) {
 			Commissions::log_error( 'attribution', (int) $order->get_id(), $e );
 		}
