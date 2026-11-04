@@ -442,6 +442,12 @@ class Store {
 		self::lock_code( $affiliate_id );
 	}
 
+	/** Usuwa dzienne liczniki starsze niż $before_day (Y-m-d). Blokada kodu jest w wierszu partnera, więc zostaje. */
+	public static function purge_clicks( string $before_day ): void {
+		global $wpdb;
+		$wpdb->query( $wpdb->prepare( 'DELETE FROM ' . self::clicks_table() . ' WHERE day < %s', $before_day ) ); // phpcs:ignore WordPress.DB
+	}
+
 	// ------------------------------------------------------------------ Prowizje
 
 	/**
@@ -564,6 +570,13 @@ class Store {
 			'items' => array_map( array( __CLASS__, 'commission_row' ), is_array( $rows ) ? $rows : array() ),
 			'total' => $total,
 		);
+	}
+
+	/** Wiersze `pending` z terminem karencji do $now (GMT), po id większym niż $after_id, rosnąco. */
+	public static function due_commissions( string $now, int $after_id, int $limit ): array {
+		global $wpdb;
+		$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM ' . self::commissions_table() . " WHERE status = 'pending' AND approve_after IS NOT NULL AND approve_after <= %s AND id > %d ORDER BY id ASC LIMIT %d", $now, $after_id, $limit ), ARRAY_A ); // phpcs:ignore WordPress.DB
+		return array_map( array( __CLASS__, 'commission_row' ), is_array( $rows ) ? $rows : array() );
 	}
 
 	private static function commission_row( array $row ): array {
