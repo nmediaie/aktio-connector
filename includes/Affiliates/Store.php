@@ -15,7 +15,7 @@ defined( 'ABSPATH' ) || exit;
 class Store {
 
 	const SCHEMA_OPTION = 'aktio_connector_affiliates_schema';
-	const SCHEMA        = 1;
+	const SCHEMA        = 2;
 	const CRON          = 'aktio_connector_affiliates_daily';
 	const TRANSIENT     = 'aktio_ar_';
 	const COUPON_META   = '_aktio_affiliate_id';
@@ -107,6 +107,7 @@ class Store {
 			rate_bp int(10) unsigned DEFAULT NULL,
 			status varchar(10) NOT NULL DEFAULT 'active',
 			external_id varchar(64) NOT NULL DEFAULT '',
+			code_locked_at datetime DEFAULT NULL,
 			created_at datetime NOT NULL,
 			updated_at datetime NOT NULL,
 			PRIMARY KEY  (id),
@@ -198,7 +199,8 @@ class Store {
 			return new \WP_Error( 'aktio_aff_not_found', __( 'Affiliate not found.', 'aktio-connector' ) );
 		}
 
-		$fields = array();
+		$fields   = array();
+		$generate = false;
 
 		if ( array_key_exists( 'name', $data ) || null === $existing ) {
 			$name = is_string( $data['name'] ?? null ) ? trim( sanitize_text_field( $data['name'] ) ) : '';
@@ -259,7 +261,7 @@ class Store {
 				$fields['code'] = $code;
 			}
 		} elseif ( null === $existing ) {
-			$fields['code'] = self::generate_code( $fields['name'] );
+			$generate = true;
 		}
 
 		$now = current_time( 'mysql', true );
@@ -272,13 +274,25 @@ class Store {
 				'created_at'  => $now,
 				'updated_at'  => $now,
 			);
-			$wpdb->suppress_errors( true );
-			$ok = $wpdb->insert( self::affiliates_table(), $fields ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
-			$wpdb->suppress_errors( false );
-			if ( false === $ok ) {
-				return new \WP_Error( 'aktio_aff_code_taken', __( 'This code is already used by another affiliate.', 'aktio-connector' ) );
+			// Kod generowany: przy wyścigu (duplikat między generate_code() a insertem) bierzemy kolejny sufiks.
+			for ( $attempt = 0; $attempt < 10; $attempt++ ) {
+				if ( $generate ) {
+					$fields['code'] = self::generate_code( $fields['name'], $attempt );
+				}
+				$wpdb->suppress_errors( true );
+				$ok = $wpdb->insert( self::affiliates_table(), $fields ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+				$wpdb->suppress_errors( false );
+				if ( false !== $ok ) {
+					return (int) $wpdb->insert_id;
+				}
+				if ( ! self::is_duplicate_error() ) {
+					return self::save_failed();
+				}
+				if ( ! $generate ) {
+					return new \WP_Error( 'aktio_aff_code_taken', __( 'This code is already used by another affiliate.', 'aktio-connector' ) );
+				}
 			}
-			return (int) $wpdb->insert_id;
+			return self::save_failed();
 		}
 
 		$fields['updated_at'] = $now;
@@ -286,7 +300,9 @@ class Store {
 		$ok = $wpdb->update( self::affiliates_table(), $fields, array( 'id' => $id ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
 		$wpdb->suppress_errors( false );
 		if ( false === $ok ) {
-			return new \WP_Error( 'aktio_aff_save_failed', __( 'The affiliate could not be saved.', 'aktio-connector' ) );
+			return self::is_duplicate_error()
+				? new \WP_Error( 'aktio_aff_code_taken', __( 'This code is already used by another affiliate.', 'aktio-connector' ) )
+				: self::save_failed();
 		}
 		return $id;
 	}
@@ -316,6 +332,16 @@ class Store {
 		return $row;
 	}
 
+	private static function save_failed(): \WP_Error {
+		return new \WP_Error( 'aktio_aff_save_failed', __( 'The affiliate could not be saved.', 'aktio-connector' ) );
+	}
+
+	/** Ostatni błąd $wpdb to naruszenie klucza unikalnego (MySQL 1062). */
+	private static function is_duplicate_error(): bool {
+		global $wpdb;
+		return false !== stripos( (string) $wpdb->last_error, 'Duplicate entry' );
+	}
+
 	private static function invalid( string $message ): \WP_Error {
 		return new \WP_Error( 'aktio_aff_invalid', $message );
 	}
@@ -329,26 +355,37 @@ class Store {
 		return null !== $wpdb->get_var( $wpdb->prepare( 'SELECT id FROM ' . self::affiliates_table() . ' WHERE code = %s AND id <> %d', $code, $except_id ) ); // phpcs:ignore WordPress.DB
 	}
 
-	/** Kod jest niezmienny od pierwszego kliknięcia lub prowizji. */
+	/**
+	 * Kod jest niezmienny od pierwszego kliknięcia lub prowizji. Znacznik jest trwały w wierszu partnera,
+	 * bo kliknięcia są usuwane po 400 dniach.
+	 */
 	private static function code_locked( int $id ): bool {
 		global $wpdb;
-		$clicks      = $wpdb->get_var( $wpdb->prepare( 'SELECT 1 FROM ' . self::clicks_table() . ' WHERE affiliate_id = %d LIMIT 1', $id ) ); // phpcs:ignore WordPress.DB
-		$commissions = $wpdb->get_var( $wpdb->prepare( 'SELECT 1 FROM ' . self::commissions_table() . ' WHERE affiliate_id = %d LIMIT 1', $id ) ); // phpcs:ignore WordPress.DB
-		return null !== $clicks || null !== $commissions;
+		$locked = $wpdb->get_var( $wpdb->prepare( 'SELECT code_locked_at FROM ' . self::affiliates_table() . ' WHERE id = %d', $id ) ); // phpcs:ignore WordPress.DB
+		return null !== $locked;
 	}
 
-	/** Kod z nazwy ([a-z0-9-], 3–32 znaki), z numerem przy kolizji. */
-	private static function generate_code( string $name ): string {
+	private static function lock_code( int $affiliate_id ): void {
+		global $wpdb;
+		$wpdb->query( $wpdb->prepare( 'UPDATE ' . self::affiliates_table() . ' SET code_locked_at = %s WHERE id = %d AND code_locked_at IS NULL', current_time( 'mysql', true ), $affiliate_id ) ); // phpcs:ignore WordPress.DB
+	}
+
+	/**
+	 * Kod z nazwy ([a-z0-9-], 3–32 znaki), z numerem przy kolizji (sufiks skraca bazę, więc nigdy >32).
+	 * $skip pomija tyle pierwszych kandydatów (ponowna próba po wyścigu).
+	 */
+	private static function generate_code( string $name, int $skip = 0 ): string {
 		$base = trim( preg_replace( '/[^a-z0-9]+/', '-', strtolower( remove_accents( $name ) ) ), '-' );
-		$base = trim( substr( $base, 0, 28 ), '-' );
 		if ( strlen( $base ) < 3 ) {
 			$base = 'partner';
 		}
-		$code = $base;
-		for ( $n = 2; self::code_exists( $code, 0 ); $n++ ) {
-			$code = $base . '-' . $n;
+		for ( $n = 1; ; $n++ ) {
+			$suffix    = 1 === $n ? '' : '-' . $n;
+			$code      = trim( substr( $base, 0, 32 - strlen( $suffix ) ), '-' ) . $suffix;
+			if ( $n > $skip && ! self::code_exists( $code, 0 ) ) {
+				return $code;
+			}
 		}
-		return $code;
 	}
 
 	// ------------------------------------------------------------------- Kupony
@@ -402,6 +439,7 @@ class Store {
 	public static function add_click( int $affiliate_id ): void {
 		global $wpdb;
 		$wpdb->query( $wpdb->prepare( 'INSERT INTO ' . self::clicks_table() . ' (day, affiliate_id, `count`) VALUES (%s, %d, 1) ON DUPLICATE KEY UPDATE `count` = `count` + 1', gmdate( 'Y-m-d' ), $affiliate_id ) ); // phpcs:ignore WordPress.DB
+		self::lock_code( $affiliate_id );
 	}
 
 	// ------------------------------------------------------------------ Prowizje
@@ -444,7 +482,15 @@ class Store {
 		$wpdb->suppress_errors( true );
 		$ok = $wpdb->insert( self::commissions_table(), $data, self::formats( $data ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
 		$wpdb->suppress_errors( false );
-		return false === $ok ? 0 : (int) $wpdb->insert_id;
+		if ( false === $ok ) {
+			if ( ! self::is_duplicate_error() ) {
+				// Bez danych osobowych: tylko id zamówienia i komunikat bazy.
+				error_log( 'Aktio Connector affiliates: commission insert failed for order ' . $order_id . ': ' . substr( (string) $wpdb->last_error, 0, 200 ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+			}
+			return 0;
+		}
+		self::lock_code( $data['affiliate_id'] );
+		return (int) $wpdb->insert_id;
 	}
 
 	/** Zmienia wskazane pola wiersza (id, order_id i created_at są niezmienne). */

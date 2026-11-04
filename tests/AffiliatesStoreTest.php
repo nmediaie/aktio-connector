@@ -208,4 +208,82 @@ class AffiliatesStoreTest extends WP_UnitTestCase {
 		$lists = \Automattic\WooCommerce\Utilities\FeaturesUtil::get_compatible_plugins_for_feature( 'custom_order_tables' );
 		$this->assertContains( plugin_basename( AKTIO_CONNECTOR_FILE ), $lists['compatible'] );
 	}
+
+	public function test_code_stays_locked_after_clicks_are_pruned() {
+		global $wpdb;
+		$id = Store::save_affiliate( array( 'name' => 'Ola' ) );
+		Store::add_click( $id );
+		$wpdb->query( 'DELETE FROM ' . Store::clicks_table() ); // phpcs:ignore WordPress.DB
+		$error = Store::save_affiliate( array( 'id' => $id, 'code' => 'inny-kod' ) );
+		$this->assertWPError( $error );
+		$this->assertSame( 'aktio_aff_code_locked', $error->get_error_code() );
+	}
+
+	public function test_code_locked_after_commission() {
+		$id = Store::save_affiliate( array( 'name' => 'Ola' ) );
+		$this->assertSame( $id, Store::save_affiliate( array( 'id' => $id, 'code' => 'ola-2' ) ) );
+		Store::insert_commission( array( 'order_id' => 601, 'affiliate_id' => $id ) );
+		$error = Store::save_affiliate( array( 'id' => $id, 'code' => 'inny-kod' ) );
+		$this->assertWPError( $error );
+		$this->assertSame( 'aktio_aff_code_locked', $error->get_error_code() );
+	}
+
+	public function test_insert_commission_logs_non_duplicate_failure_only() {
+		$log = tempnam( sys_get_temp_dir(), 'aktio-log' );
+		$old = ini_set( 'error_log', $log ); // phpcs:ignore WordPress.PHP.IniSet
+		$id  = Store::save_affiliate( array( 'name' => 'Ola' ) );
+		$row = array( 'order_id' => 701, 'affiliate_id' => $id );
+
+		$this->assertGreaterThan( 0, Store::insert_commission( $row ) );
+		$this->assertSame( 0, Store::insert_commission( $row ) ); // duplikat: cicho.
+		$this->assertSame( '', (string) file_get_contents( $log ) );
+
+		$break = function ( $q ) {
+			return 0 === strpos( $q, 'INSERT INTO `' . Store::commissions_table() ) ? 'INSERT INTO aktio_no_such_table (x) VALUES (1)' : $q;
+		};
+		add_filter( 'query', $break );
+		$this->assertSame( 0, Store::insert_commission( array( 'order_id' => 702, 'affiliate_id' => $id ) ) );
+		remove_filter( 'query', $break );
+		$logged = (string) file_get_contents( $log );
+		$this->assertStringContainsString( 'commission insert failed for order 702', $logged );
+		ini_set( 'error_log', (string) $old ); // phpcs:ignore WordPress.PHP.IniSet
+		unlink( $log );
+	}
+
+	public function test_save_affiliate_failure_is_not_reported_as_code_taken() {
+		$break = function ( $q ) {
+			return 0 === strpos( $q, 'INSERT INTO `' . Store::affiliates_table() ) ? 'INSERT INTO aktio_no_such_table (x) VALUES (1)' : $q;
+		};
+		add_filter( 'query', $break );
+		$error = Store::save_affiliate( array( 'name' => 'Ola' ) );
+		remove_filter( 'query', $break );
+		$this->assertWPError( $error );
+		$this->assertSame( 'aktio_aff_save_failed', $error->get_error_code() );
+	}
+
+	public function test_generated_code_retries_on_race_and_stays_within_32() {
+		// Wyścig: pierwszy kandydat zajęty tuż przed insertem (symulacja przez wstawienie w filtrze).
+		$raced = false;
+		$race  = function ( $q ) use ( &$raced ) {
+			global $wpdb;
+			if ( ! $raced && 0 === strpos( $q, 'INSERT INTO `' . Store::affiliates_table() ) ) {
+				$raced = true;
+				$wpdb->insert( Store::affiliates_table(), array( 'code' => 'jan', 'name' => 'X', 'created_at' => '2026-01-01 00:00:00', 'updated_at' => '2026-01-01 00:00:00' ) );
+			}
+			return $q;
+		};
+		add_filter( 'query', $race );
+		$id = Store::save_affiliate( array( 'name' => 'Jan' ) );
+		remove_filter( 'query', $race );
+		$this->assertIsInt( $id );
+		$this->assertSame( 'jan-2', Store::get_affiliate( $id )['code'] );
+
+		$long = str_repeat( 'a', 40 );
+		$one  = Store::get_affiliate( Store::save_affiliate( array( 'name' => $long ) ) )['code'];
+		$two  = Store::get_affiliate( Store::save_affiliate( array( 'name' => $long ) ) )['code'];
+		$this->assertSame( 32, strlen( $one ) );
+		$this->assertLessThanOrEqual( 32, strlen( $two ) );
+		$this->assertNotSame( $one, $two );
+		$this->assertMatchesRegularExpression( '/^[a-z0-9-]{3,32}\z/', $two );
+	}
 }
