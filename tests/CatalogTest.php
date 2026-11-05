@@ -53,7 +53,7 @@ class CatalogTest extends WP_UnitTestCase {
 		$this->assertSame( 1, $data['total_pages'] );
 		$this->assertArrayHasKey( 'brands_supported', $data );
 		$item = $data['items'][0];
-		$this->assertSame( array( 'id', 'name', 'brands', 'images', 'images_missing_alt', 'short_len', 'desc_len', 'sku', 'gtin', 'weight', 'categories' ), array_keys( $item ) );
+		$this->assertSame( array( 'id', 'name', 'brands', 'images', 'images_missing_alt', 'short_len', 'desc_len', 'sku', 'gtin', 'weight', 'categories', 'lang' ), array_keys( $item ) );
 		$this->assertSame( 'Kubek', $item['name'] );
 		$this->assertSame( 3, $item['images'] );
 		$this->assertSame( 1, $item['images_missing_alt'] );

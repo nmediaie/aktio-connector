@@ -278,4 +278,22 @@ class ContentSchemaTest extends WP_UnitTestCase {
 		$this->go_to( get_permalink( $id ) );
 		$this->assertStringNotContainsString( 'secret', Graph::render() );
 	}
+
+	public function test_empty_site_title_falls_back_to_company_name() {
+		update_option( 'blogname', '' );
+		Settings::update( array( 'company' => array( 'name' => 'Plantacja' ) ) );
+
+		$page = self::factory()->post->create( array( 'post_type' => 'page', 'post_title' => 'Herbatka' ) );
+		$this->go_to( get_permalink( $page ) );
+		$g = $this->graph();
+		$this->assertSame( 'Plantacja', $this->by_type( $g, 'WebSite' )['name'] );
+		$this->assertSame( 'Plantacja', $this->by_type( $g, 'BreadcrumbList' )['itemListElement'][0]['name'] );
+
+		// Strona główna bez tytułu: nazwa WebPage z nazwy witryny.
+		$front = self::factory()->post->create( array( 'post_type' => 'page', 'post_title' => '' ) );
+		update_option( 'show_on_front', 'page' );
+		update_option( 'page_on_front', $front );
+		$this->go_to( home_url( '/' ) );
+		$this->assertSame( 'Plantacja', $this->by_type( $this->graph(), 'WebPage' )['name'] );
+	}
 }

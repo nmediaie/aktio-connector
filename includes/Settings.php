@@ -70,7 +70,34 @@ class Settings {
 				'bing'   => '',
 				'google' => '',
 			),
+			'affiliates'       => self::affiliates_defaults(),
 		);
+	}
+
+	/**
+	 * Moduł partnerski: domyślnie wyłączony; tryb zgody (consent_api | self_managed) właściciel wybiera sam.
+	 */
+	private static function affiliates_defaults(): array {
+		return array(
+			'enabled'             => false,
+			'param'               => 'ref',
+			'window_days'         => 30,
+			'rate_bp'             => 1000,
+			'hold_days'           => 30,
+			'consent_mode'        => '',
+			'delete_on_uninstall' => false,
+		);
+	}
+
+	/**
+	 * Nazwy, których nie wolno użyć jako parametru linku partnerskiego
+	 * (zmienne zapytań WordPressa i WooCommerce zmieniłyby działanie strony).
+	 */
+	private static function reserved_params(): array {
+		global $wp;
+		$vars = isset( $wp->public_query_vars ) && is_array( $wp->public_query_vars ) ? $wp->public_query_vars : array();
+		$more = array( 'p', 'page', 'paged', 'page_id', 'pagename', 'name', 's', 'm', 'w', 'cat', 'tag', 'author', 'year', 'monthnum', 'day', 'feed', 'preview', 'post_type', 'attachment', 'order', 'orderby', 'error', 'cpage', 'static', 'embed', 'rest_route', 'add-to-cart', 'wc-ajax', 'product', 'product_cat', 'product_tag', 'lang', 'doing_wp_cron' );
+		return array_map( 'strtolower', array_merge( $vars, $more ) );
 	}
 
 	/**
@@ -169,6 +196,24 @@ class Settings {
 	}
 
 	/**
+	 * Nazwa witryny do tytułów, OG i schemy: tytuł witryny, a gdy pusty — nazwa firmy.
+	 * Pusty tytuł witryny ukrywały wtyczki SEO własnym ustawieniem nazwy.
+	 */
+	public static function site_name(): string {
+		$name = trim( (string) get_bloginfo( 'name' ) );
+		return '' !== $name ? $name : trim( (string) self::get()['company']['name'] );
+	}
+
+	/**
+	 * Opis witryny bez domyślnego hasła WordPressa („Just another WordPress site”) — to nie jest opis.
+	 */
+	public static function site_tagline(): string {
+		$tagline  = trim( (string) get_bloginfo( 'description' ) );
+		$defaults = array( 'Just another WordPress site', 'Kolejna witryna WordPress', __( 'Just another WordPress site' ) ); // phpcs:ignore WordPress.WP.I18n.MissingArgDomain -- tłumaczenie rdzenia.
+		return in_array( $tagline, $defaults, true ) ? '' : $tagline;
+	}
+
+	/**
 	 * Nazwa firmy zapisana przez użytkownika ('' = brak, obowiązuje nazwa witryny).
 	 */
 	private static function stored_name(): string {
@@ -231,6 +276,7 @@ class Settings {
 			'content_language' => $extra['content_language'],
 			'indexnow'         => $extra['indexnow'],
 			'verification'     => $extra['verification'],
+			'affiliates'       => $extra['affiliates'],
 		);
 	}
 
@@ -426,7 +472,51 @@ class Settings {
 				self::apply_pattern( $ve, 'google', 'verification', '/^[A-Za-z0-9_-]{20,100}\z/', __( '20 to 100 letters, digits, hyphens or underscores, or an empty string', 'aktio-connector' ), $out['verification'], $errors );
 			}
 		}
+
+		if ( array_key_exists( 'affiliates', $in ) ) {
+			$out['affiliates'] = self::affiliates_apply( $in['affiliates'], $out['affiliates'], $errors );
+		}
 		return array( $out, $errors );
+	}
+
+	/**
+	 * Nakłada pola `affiliates`. Włączenie bez wybranego trybu zgody jest błędem, a moduł zostaje wyłączony.
+	 */
+	private static function affiliates_apply( $in, array $cur, array &$errors ): array {
+		if ( ! self::is_object( $in ) ) {
+			$errors['affiliates'] = self::field_message( 'object', 'affiliates' );
+			return $cur;
+		}
+		$out = $cur;
+		self::unknown_keys( $in, array_keys( self::affiliates_defaults() ), 'affiliates', $errors );
+		self::apply_bool( $in, 'enabled', 'affiliates', $out, $errors );
+		self::apply_bool( $in, 'delete_on_uninstall', 'affiliates', $out, $errors );
+		self::apply_int( $in, 'window_days', 'affiliates', 1, 365, $out, $errors );
+		self::apply_int( $in, 'hold_days', 'affiliates', 0, 365, $out, $errors );
+		self::apply_int( $in, 'rate_bp', 'affiliates', 0, 10000, $out, $errors );
+
+		if ( array_key_exists( 'consent_mode', $in ) ) {
+			if ( is_string( $in['consent_mode'] ) && in_array( $in['consent_mode'], array( '', 'consent_api', 'self_managed' ), true ) ) {
+				$out['consent_mode'] = $in['consent_mode'];
+			} else {
+				$errors['affiliates.consent_mode'] = self::field_message( 'format', 'affiliates.consent_mode', __( 'consent_api, self_managed or an empty string', 'aktio-connector' ) );
+			}
+		}
+
+		if ( array_key_exists( 'param', $in ) ) {
+			$param = $in['param'];
+			if ( is_string( $param ) && 1 === preg_match( '/^[A-Za-z][A-Za-z0-9_-]{0,31}\z/', $param ) && ! in_array( strtolower( $param ), self::reserved_params(), true ) ) {
+				$out['param'] = $param;
+			} else {
+				$errors['affiliates.param'] = self::field_message( 'format', 'affiliates.param', __( 'a name of 1 to 32 letters, digits, hyphens or underscores starting with a letter, which is not a WordPress query variable such as p or page', 'aktio-connector' ) );
+			}
+		}
+
+		if ( $out['enabled'] && '' === $out['consent_mode'] ) {
+			$errors['affiliates.consent_mode'] = self::field_message( 'format', 'affiliates.consent_mode', __( 'consent_api or self_managed before the module can be enabled', 'aktio-connector' ) );
+			$out['enabled']                    = false;
+		}
+		return $out;
 	}
 
 	/**

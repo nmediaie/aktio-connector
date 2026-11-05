@@ -20,9 +20,12 @@ class Head {
 
 	const OG_FILTER = 'aktio_connector_og_tags';
 
+	const SITEMAP_EXCLUDED_FILTER = 'aktio_connector_sitemap_excluded_post_types';
+
 	public static function register(): void {
 		add_action( 'wp_head', array( __CLASS__, 'print_head' ), 1 );
 		add_filter( 'pre_get_document_title', array( __CLASS__, 'filter_title' ), 20 );
+		add_filter( 'document_title_parts', array( __CLASS__, 'filter_title_parts' ), 20 );
 		add_filter( 'wp_robots', array( __CLASS__, 'filter_robots' ), 20 );
 		add_filter( 'wp_sitemaps_posts_query_args', array( __CLASS__, 'sitemap_posts_args' ) );
 		add_filter( 'wp_sitemaps_taxonomies_query_args', array( __CLASS__, 'sitemap_taxonomies_args' ) );
@@ -50,7 +53,7 @@ class Head {
 			if ( '' !== $company ) {
 				return $company;
 			}
-			return self::trim_text( (string) get_bloginfo( 'description' ) );
+			return self::trim_text( Settings::site_tagline() );
 		}
 
 		if ( $object instanceof \WP_Post ) {
@@ -101,7 +104,7 @@ class Head {
 			'og:locale'    => self::locale(),
 			'og:type'      => $is_product ? 'product' : ( $post && 'post' === $post->post_type ? 'article' : 'website' ),
 			'og:title'     => self::og_title( $object ),
-			'og:site_name' => Graph::plain( (string) get_bloginfo( 'name' ), 200 ),
+			'og:site_name' => Graph::plain( Settings::site_name(), 200 ),
 			'og:url'       => self::current_url( $object ),
 		);
 
@@ -196,6 +199,10 @@ class Head {
 			return;
 		}
 		self::print_verification();
+		$canonical = self::canonical();
+		if ( '' !== $canonical ) {
+			echo '<link rel="canonical" href="' . esc_url( $canonical ) . '" />' . "\n";
+		}
 		if ( Detector::owns( 'meta_description' ) ) {
 			$description = self::description();
 			if ( '' !== $description ) {
@@ -230,6 +237,29 @@ class Head {
 				echo '<meta name="' . esc_attr( $name ) . '" content="' . esc_attr( $content ) . '" />' . "\n";
 			}
 		}
+	}
+
+	/**
+	 * Kanoniczny adres widoków, dla których rdzeń go nie wypisuje (rel_canonical działa
+	 * tylko na pojedynczych wpisach): sklep, archiwa terminów, strona główna z wpisami.
+	 */
+	public static function canonical(): string {
+		if ( ! Detector::owns( 'robots_meta' ) || is_singular() || self::noindex() ) {
+			return '';
+		}
+		$object = self::queried_object();
+		if ( ! $object && ! is_front_page() ) {
+			return '';
+		}
+		$url   = self::current_url( $object );
+		$paged = (int) get_query_var( 'paged' );
+		if ( '' !== $url && $paged > 1 ) {
+			global $wp_rewrite;
+			$url = $wp_rewrite->using_permalinks()
+				? user_trailingslashit( trailingslashit( $url ) . $wp_rewrite->pagination_base . '/' . $paged, 'paged' )
+				: add_query_arg( 'paged', $paged, $url );
+		}
+		return $url;
 	}
 
 	/**
@@ -276,6 +306,29 @@ class Head {
 	}
 
 	/**
+	 * Części tytułu z rdzenia: pusty tytuł witryny zastępujemy nazwą firmy,
+	 * a domyślne hasło WordPressa pomijamy.
+	 *
+	 * @param mixed $parts Części tytułu (title, page, tagline, site).
+	 */
+	public static function filter_title_parts( $parts ) {
+		if ( ! is_array( $parts ) || ! Detector::owns( 'title' ) ) {
+			return $parts;
+		}
+		$name = Settings::site_name();
+		if ( is_front_page() && isset( $parts['title'] ) && '' === trim( (string) $parts['title'] ) ) {
+			$parts['title'] = $name;
+		}
+		if ( array_key_exists( 'site', $parts ) && '' === trim( (string) $parts['site'] ) ) {
+			$parts['site'] = $name;
+		}
+		if ( array_key_exists( 'tagline', $parts ) ) {
+			$parts['tagline'] = Settings::site_tagline();
+		}
+		return $parts;
+	}
+
+	/**
 	 * @param array $robots Dyrektywy meta robots.
 	 */
 	public static function filter_robots( $robots ) {
@@ -312,8 +365,17 @@ class Head {
 	}
 
 	public static function sitemap_post_types( $types ) {
-		if ( is_array( $types ) && Detector::owns( 'robots_meta' ) ) {
-			unset( $types['attachment'] );
+		if ( ! is_array( $types ) || ! Detector::owns( 'robots_meta' ) ) {
+			return $types;
+		}
+		/**
+		 * Typy treści bez wartości w wyszukiwarce, usuwane z mapy strony.
+		 *
+		 * @param string[] $excluded Nazwy typów (domyślnie załączniki i strony systemowe MailPoet).
+		 */
+		$excluded = apply_filters( self::SITEMAP_EXCLUDED_FILTER, array( 'attachment', 'mailpoet_page' ) );
+		foreach ( (array) $excluded as $type ) {
+			unset( $types[ (string) $type ] );
 		}
 		return $types;
 	}
@@ -332,9 +394,12 @@ class Head {
 	}
 
 	private static function single_author(): bool {
+		// Te same typy, co mapa użytkowników rdzenia (WP_Sitemaps_Users): bez załączników i stron.
+		$types = get_post_types( array( 'public' => true ) );
+		unset( $types['attachment'], $types['page'] );
 		$ids = get_users(
 			array(
-				'has_published_posts' => true,
+				'has_published_posts' => array_keys( $types ),
 				'fields'              => 'ID',
 				'number'              => 2,
 			)
@@ -348,6 +413,12 @@ class Head {
 	 * @return \WP_Post|\WP_Term|null
 	 */
 	private static function queried_object() {
+		// Archiwum produktów WooCommerce opisuje strona sklepu (tytuł, opis SEO, adres).
+		if ( function_exists( 'is_shop' ) && is_shop() && ! is_singular() ) {
+			$shop = function_exists( 'wc_get_page_id' ) ? (int) wc_get_page_id( 'shop' ) : 0;
+			$page = $shop > 0 ? get_post( $shop ) : null;
+			return $page instanceof \WP_Post && 'publish' === $page->post_status ? $page : null;
+		}
 		if ( ! is_singular() && ! is_category() && ! is_tag() && ! is_tax() && ! is_front_page() ) {
 			return null;
 		}
@@ -410,7 +481,7 @@ class Head {
 		if ( $object instanceof \WP_Term ) {
 			return Graph::plain( $object->name, 200 );
 		}
-		return Graph::plain( (string) get_bloginfo( 'name' ), 200 );
+		return Graph::plain( Settings::site_name(), 200 );
 	}
 
 	/**

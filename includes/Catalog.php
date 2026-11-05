@@ -17,8 +17,21 @@ class Catalog {
 
 	/**
 	 * GET products/scan: produkty ze zliczonymi zdjęciami i brakami ALT (tylko odczyt).
+	 * Parametr `lang` zawęża do jednego języka; bez niego skan obejmuje wszystkie języki naraz,
+	 * z porcjowaniem per język: page/per_page dotyczą każdego języka, a limit globalny
+	 * (per_page) jest dzielony po równo, więc odpowiedź nie przekracza per_page pozycji.
 	 */
-	public static function scan_products( \WP_REST_Request $request ): \WP_REST_Response {
+	public static function scan_products( \WP_REST_Request $request ) {
+		$requested = $request->get_param( 'lang' );
+		$codes     = Multilang::codes();
+		if ( is_string( $requested ) && '' !== trim( $requested ) ) {
+			$code = Multilang::resolve( $requested );
+			if ( null === $code ) {
+				return self::lang_error( $requested );
+			}
+			$codes = array( $code );
+		}
+
 		if ( ! post_type_exists( 'product' ) ) {
 			return rest_ensure_response(
 				array(
@@ -26,36 +39,76 @@ class Catalog {
 					'total'            => 0,
 					'total_pages'      => 0,
 					'brands_supported' => false,
+					'languages'        => array(),
 				)
 			);
 		}
 		list( $page, $per_page ) = self::paging( $request );
-		$query                   = new \WP_Query(
-			array(
-				'post_type'      => 'product',
-				'post_status'    => 'any',
-				'posts_per_page' => $per_page,
-				'paged'          => $page,
-				'orderby'        => 'ID',
-				'order'          => 'ASC',
-				'no_found_rows'  => false,
-			)
-		);
+		$per_lang                = max( 1, intdiv( $per_page, count( $codes ) ) );
 
-		$items = array();
-		foreach ( $query->posts as $post ) {
-			$product = wc_get_product( $post->ID );
-			if ( $product ) {
-				$items[] = self::product_row( $product );
+		$items       = array();
+		$per_summary = array();
+		$total       = 0;
+		$total_pages = 0;
+		foreach ( $codes as $code ) {
+			Multilang::switch_to( $code );
+			$query = new \WP_Query(
+				array(
+					'post_type'      => 'product',
+					'post_status'    => 'any',
+					'posts_per_page' => $per_lang,
+					'paged'          => $page,
+					'orderby'        => 'ID',
+					'order'          => 'ASC',
+					'no_found_rows'  => false,
+				) + Multilang::query_args( $code )
+			);
+			Multilang::switch_to( null );
+			foreach ( $query->posts as $post ) {
+				$product = wc_get_product( $post->ID );
+				if ( $product ) {
+					$items[] = self::product_row( $product );
+				}
 			}
+			$per_summary[ $code ] = array(
+				'total'       => (int) $query->found_posts,
+				'total_pages' => (int) $query->max_num_pages,
+				'limit'       => $per_lang,
+			);
+			$total               += (int) $query->found_posts;
+			$total_pages          = max( $total_pages, (int) $query->max_num_pages );
 		}
 
 		return rest_ensure_response(
 			array(
 				'items'            => $items,
-				'total'            => (int) $query->found_posts,
-				'total_pages'      => (int) $query->max_num_pages,
+				'total'            => $total,
+				'total_pages'      => $total_pages,
 				'brands_supported' => taxonomy_exists( 'product_brand' ),
+				'languages'        => $per_summary,
+			)
+		);
+	}
+
+	private static function lang_error( string $requested ): \WP_Error {
+		if ( null === Multilang::plugin() ) {
+			return new \WP_Error(
+				'multilang_not_supported',
+				__( 'This site has no multilingual plugin (WPML or Polylang), so only the default language is available.', 'aktio-connector' ),
+				array(
+					'status'  => 400,
+					'lang'    => $requested,
+					'default' => Multilang::default_lang(),
+				)
+			);
+		}
+		return new \WP_Error(
+			'multilang_unknown_lang',
+			__( 'Unknown language code.', 'aktio-connector' ),
+			array(
+				'status'    => 400,
+				'lang'      => $requested,
+				'available' => Multilang::codes(),
 			)
 		);
 	}
@@ -84,6 +137,7 @@ class Catalog {
 			'gtin'               => $gtin,
 			'weight'             => (string) $product->get_weight(),
 			'categories'         => self::term_names( $product->get_id(), 'product_cat' ),
+			'lang'               => Multilang::post_lang( $product->get_id() ),
 		);
 	}
 
@@ -134,7 +188,7 @@ class Catalog {
 		foreach ( $query->posts as $attachment ) {
 			$parent = $attachment->post_parent ? get_post( $attachment->post_parent ) : null;
 			$thumb  = wp_get_attachment_image_url( $attachment->ID, 'thumbnail' );
-			$items[] = array(
+			$row     = array(
 				'id'          => $attachment->ID,
 				'url_thumb'   => $thumb ? $thumb : (string) wp_get_attachment_url( $attachment->ID ),
 				'title'       => get_the_title( $attachment ),
@@ -145,6 +199,10 @@ class Catalog {
 					'title' => get_the_title( $parent ),
 				) : null,
 			);
+			if ( null !== Multilang::plugin() ) {
+				$row['lang'] = Multilang::post_lang( $attachment->ID );
+			}
+			$items[] = $row;
 		}
 
 		return rest_ensure_response(

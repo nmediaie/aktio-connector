@@ -9,6 +9,11 @@ if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
 	exit;
 }
 
+// Moduł partnerski czyta opcję `delete_on_uninstall` z ustawień, więc musi pójść przed ich skasowaniem.
+require_once __DIR__ . '/includes/Settings.php';
+require_once __DIR__ . '/includes/Affiliates/Store.php';
+\AktioConnector\Affiliates\Store::uninstall();
+
 delete_option( 'aktio_connector_settings' );
 delete_option( 'aktio_connector_update_log' );
 delete_option( 'aktio_connector_core_auto' );
