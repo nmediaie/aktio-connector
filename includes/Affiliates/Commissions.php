@@ -197,13 +197,29 @@ class Commissions {
 		return self::money( (float) $row['clawback'] - (float) $row['clawback_settled_amount'] );
 	}
 
-	/** Część zamówienia, która została po zwrotach: 1 − min(1, zwroty / suma). */
+	/**
+	 * Część towarów, która została po zwrotach: 1 − min(1, zwroty towarów / towary), bez wysyłki i jej podatku po obu stronach.
+	 * Licznik i mianownik są brutto: suma zwrotów i suma zamówienia zawierają podatek. Zwrot bez zaznaczonej pozycji
+	 * wysyłki liczy się w całości jako towary. Bez wartości towarów: całość zostaje, chyba że cokolwiek zwrócono na towary.
+	 */
 	private static function kept_share( \WC_Order $order ): float {
-		$total = (float) $order->get_total();
-		if ( $total <= 0.0 ) {
-			return 1.0;
+		$goods    = round( (float) $order->get_total() - (float) $order->get_shipping_total() - (float) $order->get_shipping_tax(), 4 );
+		$refunded = round( (float) $order->get_total_refunded() - abs( (float) $order->get_total_shipping_refunded() ) - self::shipping_tax_refunded( $order ), 4 );
+		if ( $goods <= 0.0 ) {
+			return $refunded > 0.0 ? 0.0 : 1.0;
 		}
-		return 1.0 - min( 1.0, (float) $order->get_total_refunded() / $total );
+		return 1.0 - min( 1.0, max( 0.0, $refunded ) / $goods );
+	}
+
+	/** get_total_shipping_refunded() nie zawiera podatku, a get_total_shipping_tax_refunded() jest dopiero od WooCommerce 10.2. */
+	private static function shipping_tax_refunded( \WC_Order $order ): float {
+		$tax = 0.0;
+		foreach ( $order->get_refunds() as $refund ) {
+			foreach ( $refund->get_items( 'shipping' ) as $item ) {
+				$tax += abs( (float) $item->get_total_tax() );
+			}
+		}
+		return $tax;
 	}
 
 	public static function commission_amount( float $base, int $rate_bp ): float {
@@ -275,13 +291,16 @@ class Commissions {
 	}
 
 	/**
-	 * Nadrabia zmiany zamówień, które minęły hooki (wyłączony WooCommerce lub wtyczka): `pending` bez terminu dostaje
-	 * termin albo odrzucenie, a `rejected` z powodu `order_status` wraca, gdy zamówienie wróciło. Usunięte zamówienie: bez zmian.
+	 * Nadrabia zmiany zamówień, które minęły hooki (wyłączony WooCommerce lub wtyczka, zwrot usunięty przez REST WooCommerce):
+	 * `pending` bez terminu dostaje termin albo odrzucenie, `rejected` z powodu `order_status` wraca, gdy zamówienie wróciło,
+	 * `approved` i `paid` z ostatnich Store::SYNC_SETTLED_DAYS dni są uzgadniane z bieżącym stanem. Usunięte zamówienie: bez zmian.
+	 * Sumy zwrotów WooCommerce trzyma w cache'u, którego usunięcie zwrotu bez hooka nie czyści: jedno unieważnienie grupy na przebieg.
 	 */
 	public static function sync_missed(): void {
 		if ( ! Store::available() ) {
 			return;
 		}
+		wc_delete_shop_order_transients();
 		$after_id = 0;
 		do {
 			$rows = Store::commissions_to_sync( $after_id, Store::MAX_PER_PAGE );
@@ -306,7 +325,8 @@ class Commissions {
 			}
 			return;
 		}
-		if ( 'ok' === self::reconcile( $row, $order ) && $order->has_status( 'completed' ) ) {
+		$result = self::reconcile( $row, $order );
+		if ( 'ok' === $result && 'pending' === $row['status'] && $order->has_status( 'completed' ) ) {
 			Store::update_commission_if_status( $row['id'], 'pending', array( 'approve_after' => self::approve_after() ) );
 		}
 	}
@@ -409,7 +429,9 @@ class Commissions {
 				if ( 'pending' !== $row['status'] ) {
 					return 'invalid_state';
 				}
-				return self::apply_checked( $row, 'pending', 'approved', static fn( array $fresh, \WC_Order $order ) => $order->has_status( 'completed' ) ? array() : null );
+				// Termin karencji znaczy, że zamówienie minęło `completed`: sklep z własnym statusem końcowym też może zatwierdzić.
+				// Statusy odrzucające wygrywają wcześniej, w reconcile(). Cron zostaje ostrożny i wymaga `completed`.
+				return self::apply_checked( $row, 'pending', 'approved', static fn( array $fresh, \WC_Order $order ) => $order->has_status( 'completed' ) || null !== $fresh['approve_after'] ? array() : null );
 
 			case 'paid':
 				if ( 'paid' === $row['status'] ) {

@@ -25,6 +25,8 @@ class AffiliatesCommissionsTest extends WP_UnitTestCase {
 		remove_all_filters( 'woocommerce_order_get_billing_email' );
 		remove_all_filters( 'woocommerce_logger_log_message' );
 		delete_option( Settings::OPTION );
+		delete_option( 'woocommerce_calc_taxes' );
+		delete_option( 'woocommerce_prices_include_tax' );
 		parent::tear_down();
 	}
 
@@ -126,6 +128,66 @@ class AffiliatesCommissionsTest extends WP_UnitTestCase {
 		);
 		$this->assertInstanceOf( WC_Order_Refund::class, $refund );
 		return $refund;
+	}
+
+	/** Partner 10 %: towar 100, wysyłka 20, opcjonalnie z podatkiem. Zwraca zamówienie i id pozycji (goods, shipping). */
+	private function goods_and_shipping( bool $taxed = false, string $prices_include_tax = 'no' ): array {
+		$price   = $taxed && 'yes' === $prices_include_tax ? '123' : '100';
+		$product = new WC_Product_Simple();
+		$product->set_name( 'Goods' );
+		$product->set_regular_price( $price );
+		$product->save();
+
+		$order    = wc_create_order();
+		$goods_id = $order->add_product( $product, 1 );
+		$shipping = new WC_Order_Item_Shipping();
+		$shipping->set_method_title( 'Flat' );
+		$shipping->set_total( '20' );
+		$order->add_item( $shipping );
+		$order->set_currency( 'EUR' );
+		$order->set_billing_email( 'buyer@example.com' );
+		$order->calculate_totals( $taxed );
+		$order->save();
+
+		$partner = $this->affiliate();
+		$this->set_cookie( $partner['code'] );
+		Attribution::on_order( $this->fresh( $order ) );
+		unset( $_COOKIE[ Tracker::COOKIE ] );
+		$this->assertNotNull( Store::commission_for_order( $order->get_id() ) );
+
+		return array( $order, array( 'goods' => $goods_id, 'shipping' => $shipping->get_id() ) );
+	}
+
+	/** Zwrot z zaznaczonymi pozycjami, jak z ekranu zamówienia. */
+	private function refund_lines( WC_Order $order, float $amount, array $lines ): WC_Order_Refund {
+		$refund = wc_create_refund(
+			array(
+				'order_id'   => $order->get_id(),
+				'amount'     => $amount,
+				'line_items' => $lines,
+			)
+		);
+		$this->assertInstanceOf( WC_Order_Refund::class, $refund );
+		return $refund;
+	}
+
+	/** Włącza podatki 23 % (także od wysyłki) i zwraca id stawki. */
+	private function tax_rate_23( string $prices_include_tax ): int {
+		update_option( 'woocommerce_calc_taxes', 'yes' );
+		update_option( 'woocommerce_prices_include_tax', $prices_include_tax );
+		return (int) WC_Tax::_insert_tax_rate(
+			array(
+				'tax_rate_country'  => '',
+				'tax_rate_state'    => '',
+				'tax_rate'          => '23.0000',
+				'tax_rate_name'     => 'VAT',
+				'tax_rate_priority' => 1,
+				'tax_rate_compound' => 0,
+				'tax_rate_shipping' => 1,
+				'tax_rate_order'    => 1,
+				'tax_rate_class'    => '',
+			)
+		);
 	}
 
 	/** Zmiana stanu zamówienia przy odpiętych hookach modułu (WooCommerce albo wtyczka wyłączone). */
@@ -542,18 +604,112 @@ class AffiliatesCommissionsTest extends WP_UnitTestCase {
 		$this->assertSame( 'pending', $second['status'] );
 	}
 
-	public function test_refund_share_is_measured_against_the_whole_order_total() {
-		list( $order ) = $this->attributed();
-		$order         = $this->fresh( $order );
-		$order->set_shipping_total( '20' );
-		$order->set_total( '100' );
-		$order->save();
+	public function test_all_goods_refunded_with_shipping_kept_leaves_no_commission() {
+		list( $order, $ids ) = $this->goods_and_shipping();
+		$this->assertSame( 10.0, (float) $this->row( $order )['commission'] );
+
+		$this->refund_lines( $order, 100.0, array( $ids['goods'] => array( 'qty' => 1, 'refund_total' => 100 ) ) );
+
+		$row = $this->row( $order );
+		$this->assertSame( 0.0, (float) $row['base_amount'] );
+		$this->assertSame( 0.0, (float) $row['commission'] );
+		$this->assertSame( 100.0, (float) $row['base_original'] );
+	}
+
+	public function test_shipping_only_refund_leaves_commission_unchanged() {
+		list( $order, $ids ) = $this->goods_and_shipping();
+
+		$this->refund_lines( $order, 20.0, array( $ids['shipping'] => array( 'refund_total' => 20 ) ) );
+
+		$row = $this->row( $order );
+		$this->assertSame( 100.0, (float) $row['base_amount'] );
+		$this->assertSame( 10.0, (float) $row['commission'] );
+	}
+
+	public function test_half_the_goods_refunded_halves_commission() {
+		list( $order, $ids ) = $this->goods_and_shipping();
+
+		$this->refund_lines( $order, 50.0, array( $ids['goods'] => array( 'refund_total' => 50 ) ) );
+
+		$row = $this->row( $order );
+		$this->assertSame( 50.0, (float) $row['base_amount'] );
+		$this->assertSame( 5.0, (float) $row['commission'] );
+	}
+
+	public function test_partial_goods_and_shipping_refunds_are_cumulative() {
+		list( $order, $ids ) = $this->goods_and_shipping();
+
+		$this->refund_lines( $order, 30.0, array( $ids['goods'] => array( 'refund_total' => 30 ) ) );
+		$this->assertSame( 7.0, (float) $this->row( $order )['commission'] );
+
+		$this->refund_lines( $order, 20.0, array( $ids['shipping'] => array( 'refund_total' => 20 ) ) );
+		$this->assertSame( 7.0, (float) $this->row( $order )['commission'], 'A shipping refund in between changes nothing.' );
+
+		$this->refund_lines( $order, 20.0, array( $ids['goods'] => array( 'refund_total' => 20 ) ) );
+		$row = $this->row( $order );
+		$this->assertSame( 50.0, (float) $row['base_amount'] );
+		$this->assertSame( 5.0, (float) $row['commission'] );
+	}
+
+	public function test_all_goods_refunded_after_paid_claws_back_everything() {
+		list( $order, $ids ) = $this->goods_and_shipping();
+		$this->make_paid( $this->row( $order ), '10.0000' );
+
+		$this->refund_lines( $order, 100.0, array( $ids['goods'] => array( 'qty' => 1, 'refund_total' => 100 ) ) );
+
+		$row = $this->row( $order );
+		$this->assertSame( 'paid', $row['status'] );
+		$this->assertSame( 10.0, (float) $row['clawback'] );
+	}
+
+	public function test_amount_only_refund_counts_against_goods() {
+		list( $order ) = $this->goods_and_shipping();
 
 		$this->refund( $this->fresh( $order ), 25.0 );
 
-		$row = $this->row( $order );
-		$this->assertSame( 60.0, (float) $row['base_amount'], '25 of 100 is a quarter of the base.' );
-		$this->assertSame( 6.0, (float) $row['commission'] );
+		$this->assertSame( 7.5, (float) $this->row( $order )['commission'], 'No shipping line in the refund: all of it is goods.' );
+	}
+
+	public function test_tax_exclusive_prices_share_is_on_the_same_tax_basis() {
+		$this->assert_taxed_refund_shares( 'no' );
+	}
+
+	public function test_tax_inclusive_prices_share_is_on_the_same_tax_basis() {
+		$this->assert_taxed_refund_shares( 'yes' );
+	}
+
+	/** Towar 100 + 23 podatku, wysyłka 20 + 4,60 podatku, prowizja 10. */
+	private function assert_taxed_refund_shares( string $prices_include_tax ): void {
+		$rate = $this->tax_rate_23( $prices_include_tax );
+
+		list( $order, $ids ) = $this->goods_and_shipping( true, $prices_include_tax );
+		$fresh               = $this->fresh( $order );
+		$this->assertSame( 147.6, (float) $fresh->get_total() );
+		$this->assertSame( 4.6, (float) $fresh->get_shipping_tax() );
+		$this->assertSame( 100.0, (float) $this->row( $order )['base_original'] );
+		$this->refund_lines( $order, 24.6, array( $ids['shipping'] => array( 'refund_total' => 20, 'refund_tax' => array( $rate => 4.6 ) ) ) );
+		$this->assertSame( 10.0, (float) $this->row( $order )['commission'], 'Shipping with its tax does not touch the goods.' );
+
+		list( $order, $ids ) = $this->goods_and_shipping( true, $prices_include_tax );
+		$this->refund_lines( $order, 61.5, array( $ids['goods'] => array( 'refund_total' => 50, 'refund_tax' => array( $rate => 11.5 ) ) ) );
+		$this->assertSame( 5.0, (float) $this->row( $order )['commission'], 'Half the goods with tax is half.' );
+
+		list( $order, $ids ) = $this->goods_and_shipping( true, $prices_include_tax );
+		$this->refund_lines( $order, 123.0, array( $ids['goods'] => array( 'qty' => 1, 'refund_total' => 100, 'refund_tax' => array( $rate => 23 ) ) ) );
+		$this->assertSame( 0.0, (float) $this->row( $order )['commission'], 'All goods with tax, shipping kept: nothing left.' );
+	}
+
+	public function test_order_without_goods_value_keeps_commission_until_goods_are_refunded() {
+		list( $order ) = $this->goods_and_shipping();
+		$fresh         = $this->fresh( $order );
+		$fresh->set_total( '20' ); // Sama wysyłka: mianownik towarów to 0.
+		$fresh->save();
+
+		Commissions::recalculate( $this->row( $order ), $this->fresh( $order ) );
+		$this->assertSame( 10.0, (float) $this->row( $order )['commission'], 'Nothing refunded: fully kept, no division by zero.' );
+
+		$this->refund( $this->fresh( $order ), 5.0 );
+		$this->assertSame( 0.0, (float) $this->row( $order )['commission'], 'A refund against goods with no goods value: nothing kept.' );
 	}
 
 	public function test_commission_is_rounded_to_price_decimals() {
@@ -914,6 +1070,147 @@ class AffiliatesCommissionsTest extends WP_UnitTestCase {
 	}
 
 	// ------------------------------------------------------- Warunkowy zapis stanu
+
+	// --------------------------------------------- Nadrabianie wierszy `approved` i `paid`
+
+	/** Wiersz `approved` zamówienia `completed`. */
+	private function approved_row(): array {
+		$this->settings( array( 'hold_days' => 0 ) );
+		list( $order ) = $this->attributed();
+		$this->fresh( $order )->update_status( 'completed' );
+		$this->past_due( $this->row( $order ) );
+		$this->assertSame( 1, Commissions::approve_due() );
+		$row = $this->row( $order );
+		$this->assertSame( 'approved', $row['status'] );
+		return array( $order, $row );
+	}
+
+	private function age_row( array $row, int $days ): void {
+		global $wpdb;
+		$wpdb->update( Store::commissions_table(), array( 'created_at' => gmdate( 'Y-m-d H:i:s', time() - $days * DAY_IN_SECONDS ) ), array( 'id' => $row['id'] ) ); // phpcs:ignore WordPress.DB
+	}
+
+	public function test_sync_claws_back_paid_order_fully_refunded_while_hooks_off() {
+		list( $order, $row ) = $this->approved_row();
+		$this->make_paid( $row );
+		$this->without_hooks(
+			function () use ( $order ) {
+				$this->refund( $this->fresh( $order ), 80.0 );
+			}
+		);
+		$this->assertSame( 0.0, (float) $this->row( $order )['clawback'], 'The hooks really were off.' );
+
+		Commissions::sync_missed();
+
+		$after = $this->row( $order );
+		$this->assertSame( 'paid', $after['status'] );
+		$this->assertSame( 8.0, (float) $after['clawback'] );
+		$this->assertSame( '8.0000', Commissions::clawback_balance( $after ) );
+		$this->assertSame( 8.0, (float) $after['commission'], 'A paid row keeps its commission.' );
+	}
+
+	public function test_sync_lowers_clawback_when_refund_is_deleted_while_hooks_off() {
+		list( $order, $row ) = $this->approved_row();
+		$this->make_paid( $row );
+		$refund = $this->refund( $this->fresh( $order ), 20.0 );
+		$this->assertSame( 2.0, (float) $this->row( $order )['clawback'] );
+		$this->assertSame( 20.0, (float) $this->fresh( $order )->get_total_refunded(), 'Primes the WooCommerce cache.' );
+
+		// Jak DELETE przez REST WooCommerce: bez woocommerce_refund_deleted, suma w cache'u zostaje stara.
+		$refund->delete( true );
+		$this->assertSame( 2.0, (float) $this->row( $order )['clawback'], 'Nothing reacted to the delete.' );
+
+		Commissions::sync_missed();
+
+		$after = $this->row( $order );
+		$this->assertSame( 'paid', $after['status'] );
+		$this->assertSame( 0.0, (float) $after['clawback'] );
+	}
+
+	public function test_sync_rejects_approved_row_of_order_cancelled_while_hooks_off() {
+		list( $order, $row ) = $this->approved_row();
+		$this->without_hooks(
+			function () use ( $order ) {
+				$this->fresh( $order )->update_status( 'cancelled' );
+			}
+		);
+		$this->assertSame( 'approved', $this->row( $order )['status'], 'The hooks really were off.' );
+
+		Commissions::sync_missed();
+
+		$after = $this->row( $order );
+		$this->assertSame( 'rejected', $after['status'] );
+		$this->assertSame( 'order_status', $after['reason'] );
+	}
+
+	public function test_sync_recalculates_approved_row_after_partial_refund_while_hooks_off() {
+		list( $order, $row ) = $this->approved_row();
+		$this->without_hooks(
+			function () use ( $order ) {
+				$this->refund( $this->fresh( $order ), 20.0 );
+			}
+		);
+		$this->assertSame( 8.0, (float) $this->row( $order )['commission'], 'The hooks really were off.' );
+
+		Commissions::sync_missed();
+
+		$after = $this->row( $order );
+		$this->assertSame( 'approved', $after['status'] );
+		$this->assertSame( 60.0, (float) $after['base_amount'] );
+		$this->assertSame( 6.0, (float) $after['commission'] );
+	}
+
+	public function test_sync_skips_paid_and_approved_rows_of_deleted_orders() {
+		list( $paid_order, $paid ) = $this->approved_row();
+		$this->make_paid( $paid );
+		list( $approved_order, $approved ) = $this->approved_row();
+		$paid_id     = $paid_order->get_id();
+		$approved_id = $approved_order->get_id();
+		$this->fresh( $paid_order )->delete( true );
+		$this->fresh( $approved_order )->delete( true );
+
+		Commissions::sync_missed();
+
+		$this->assertSame( 'paid', Store::commission_for_order( $paid_id )['status'] );
+		$this->assertSame( 0.0, (float) Store::commission_for_order( $paid_id )['clawback'] );
+		$this->assertSame( 'approved', Store::commission_for_order( $approved_id )['status'] );
+		$this->assertSame( 8.0, (float) Store::commission_for_order( $approved_id )['commission'] );
+	}
+
+	public function test_sync_reaches_paid_and_approved_rows_only_within_180_days() {
+		list( $old_paid_order, $old_paid ) = $this->approved_row();
+		$this->make_paid( $old_paid );
+		list( $old_approved_order, $old_approved ) = $this->approved_row();
+		list( $recent_order, $recent )             = $this->approved_row();
+		$this->make_paid( $recent );
+		$this->age_row( $old_paid, 181 );
+		$this->age_row( $old_approved, 181 );
+		$this->age_row( $recent, 179 );
+		$this->without_hooks(
+			function () use ( $old_paid_order, $old_approved_order, $recent_order ) {
+				foreach ( array( $old_paid_order, $old_approved_order, $recent_order ) as $order ) {
+					$this->refund( $this->fresh( $order ), 20.0 );
+				}
+			}
+		);
+
+		Commissions::sync_missed();
+
+		$this->assertSame( 0.0, (float) $this->row( $old_paid_order )['clawback'] );
+		$this->assertSame( 8.0, (float) $this->row( $old_approved_order )['commission'] );
+		$this->assertSame( 2.0, (float) $this->row( $recent_order )['clawback'] );
+	}
+
+	public function test_sync_does_not_give_paid_or_approved_rows_a_new_term() {
+		list( $order, $row ) = $this->approved_row();
+		$before              = $this->row( $order )['approve_after'];
+		Store::update_commission( $row['id'], array( 'approve_after' => null ) );
+
+		Commissions::sync_missed();
+
+		$this->assertNull( $this->row( $order )['approve_after'], 'A term belongs to pending rows only (was ' . $before . ').' );
+		$this->assertSame( 'approved', $this->row( $order )['status'] );
+	}
 
 	public function test_stale_row_does_not_transition() {
 		list( $order, $stale ) = $this->attributed();

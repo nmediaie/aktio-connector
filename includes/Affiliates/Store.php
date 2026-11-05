@@ -21,6 +21,9 @@ class Store {
 	const COUPON_META   = '_aktio_affiliate_id';
 	const MAX_PER_PAGE  = 200;
 
+	/** Jak daleko wstecz dzienne uzgadnianie sięga po wiersze `approved` i `paid`. */
+	const SYNC_SETTLED_DAYS = 180;
+
 	const STATUSES = array( 'active', 'paused' );
 
 	/** Kolumny wiersza prowizji, które wolno zapisać (poza id, order_id i created_at przy zmianie). */
@@ -182,6 +185,22 @@ class Store {
 				$wpdb->query( "DROP TABLE IF EXISTS `{$table}`" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 			}
 			delete_option( self::SCHEMA_OPTION );
+			self::delete_coupon_assignments();
+		}
+	}
+
+	/**
+	 * Id partnerów po ponownej instalacji liczą się od 1: stary kupon nie może płacić nowemu partnerowi.
+	 * WC_Coupon trzyma meta we własnym cache'u (też trwałym), więc poza bazą trzeba unieważnić także go.
+	 */
+	private static function delete_coupon_assignments(): void {
+		global $wpdb;
+		$coupon_ids = $wpdb->get_col( $wpdb->prepare( "SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = %s", self::COUPON_META ) ); // phpcs:ignore WordPress.DB
+		delete_post_meta_by_key( self::COUPON_META );
+		if ( class_exists( 'WC_Cache_Helper' ) ) {
+			foreach ( $coupon_ids as $coupon_id ) {
+				\WC_Cache_Helper::invalidate_cache_group( 'object_' . (int) $coupon_id );
+			}
 		}
 	}
 
@@ -725,12 +744,13 @@ class Store {
 	}
 
 	/**
-	 * Wiersze, które mogły minąć hooki statusów: `pending` bez terminu karencji i `rejected` z powodu `order_status`.
-	 * Po id większym niż $after_id, rosnąco.
+	 * Wiersze, które mogły minąć hooki statusów i zwrotów: `pending` bez terminu karencji, `rejected` z powodu `order_status`
+	 * oraz `approved` i `paid` utworzone w ostatnich SYNC_SETTLED_DAYS dniach. Po id większym niż $after_id, rosnąco.
 	 */
 	public static function commissions_to_sync( int $after_id, int $limit ): array {
 		global $wpdb;
-		$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM ' . self::commissions_table() . " WHERE id > %d AND ( ( status = 'pending' AND approve_after IS NULL ) OR ( status = 'rejected' AND reason = 'order_status' ) ) ORDER BY id ASC LIMIT %d", $after_id, $limit ), ARRAY_A ); // phpcs:ignore WordPress.DB
+		$since = gmdate( 'Y-m-d H:i:s', time() - self::SYNC_SETTLED_DAYS * DAY_IN_SECONDS );
+		$rows  = $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM ' . self::commissions_table() . " WHERE id > %d AND ( ( status = 'pending' AND approve_after IS NULL ) OR ( status = 'rejected' AND reason = 'order_status' ) OR ( status IN ( 'approved', 'paid' ) AND created_at >= %s ) ) ORDER BY id ASC LIMIT %d", $after_id, $since, $limit ), ARRAY_A ); // phpcs:ignore WordPress.DB
 		return array_map( array( __CLASS__, 'commission_row' ), is_array( $rows ) ? $rows : array() );
 	}
 

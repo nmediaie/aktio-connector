@@ -11,7 +11,7 @@
 - Option to delete all affiliate data on uninstall (off by default: the data is settlement history).
 
 ### Documentation
-- readme.txt: "Privacy of the affiliate programme" (cookie `aktio_ref`, purpose, lifetime, no IP stored, 10-minute HMAC, consent modes, owner's duty in the self-managed mode), FAQ, known limits (click counts behind a proxy, refund share measured against the order total, custom order statuses, no tracking without JavaScript).
+- readme.txt: "Privacy of the affiliate programme" (cookie `aktio_ref`, purpose, lifetime, no IP stored, 10-minute HMAC, consent modes, owner's duty in the self-managed mode), FAQ, known limits (click counts behind a proxy, refund share measured against goods without shipping, custom order statuses, no tracking without JavaScript).
 - AI visit measurement is unchanged and still cookieless.
 
 ## 0.2.2 — 2026-10-29

@@ -240,6 +240,75 @@ class AffiliatesRestTest extends WP_UnitTestCase {
 		$this->assertSame( 'approved', Store::commission_for_order( $row2['order_id'] )['status'] );
 	}
 
+	/** Własny status po `completed`, jak `delivered` w sklepach z dostawą. */
+	private function register_delivered_status(): void {
+		add_filter(
+			'wc_order_statuses',
+			static function ( $statuses ) {
+				$statuses['wc-delivered'] = 'Delivered';
+				return $statuses;
+			}
+		);
+		register_post_status( 'wc-delivered', array( 'label' => 'Delivered', 'public' => false ) );
+	}
+
+	public function test_approve_accepts_row_that_passed_completed_into_a_custom_status() {
+		$this->register_delivered_status();
+		$this->update_affiliate_settings_hold( 30 );
+		list( $order, $row ) = $this->row_in_state( 'pending' );
+		wc_get_order( $order->get_id() )->update_status( 'completed' );
+		wc_get_order( $order->get_id() )->update_status( 'delivered' );
+		$this->assertSame( 'delivered', wc_get_order( $order->get_id() )->get_status() );
+		$this->assertNotNull( Store::commission_for_order( $order->get_id() )['approve_after'] );
+
+		$res = $this->act( 'approve', array( $row['id'] ) );
+
+		$this->assertSame( 'ok', $res->get_data()['results'][ $row['id'] ] );
+		$this->assertSame( 'approved', Store::commission_for_order( $order->get_id() )['status'] );
+	}
+
+	public function test_approve_refuses_custom_status_that_never_passed_completed() {
+		$this->register_delivered_status();
+		list( $order, $row ) = $this->row_in_state( 'pending' );
+		wc_get_order( $order->get_id() )->update_status( 'delivered' );
+
+		$res = $this->act( 'approve', array( $row['id'] ) );
+
+		$this->assertSame( 'invalid_state', $res->get_data()['results'][ $row['id'] ] );
+		$this->assertSame( 'pending', Store::commission_for_order( $order->get_id() )['status'] );
+	}
+
+	public function test_approve_rejecting_status_wins_over_approve_after() {
+		list( $order, $row ) = $this->row_in_state( 'pending' );
+		wc_get_order( $order->get_id() )->update_status( 'completed' );
+		$this->assertNotNull( Store::commission_for_order( $order->get_id() )['approve_after'] );
+		$this->without_hooks(
+			static function () use ( $order ) {
+				wc_get_order( $order->get_id() )->update_status( 'cancelled' );
+			}
+		);
+
+		$res = $this->act( 'approve', array( $row['id'] ) );
+
+		$this->assertSame( 'order_refunded', $res->get_data()['results'][ $row['id'] ] );
+		$this->assertSame( 'rejected', Store::commission_for_order( $order->get_id() )['status'] );
+	}
+
+	public function test_cron_stays_conservative_about_custom_status() {
+		$this->register_delivered_status();
+		list( $order, $row ) = $this->row_in_state( 'pending' );
+		wc_get_order( $order->get_id() )->update_status( 'completed' );
+		wc_get_order( $order->get_id() )->update_status( 'delivered' );
+		Store::update_commission( $row['id'], array( 'approve_after' => gmdate( 'Y-m-d H:i:s', time() - HOUR_IN_SECONDS ) ) );
+
+		$this->assertSame( 0, Commissions::approve_due() );
+		$this->assertSame( 'pending', Store::commission_for_order( $order->get_id() )['status'] );
+	}
+
+	private function update_affiliate_settings_hold( int $days ): void {
+		$this->assertNotInstanceOf( WP_Error::class, Settings::update( array( 'affiliates' => array( 'hold_days' => $days ) ) ) );
+	}
+
 	public function test_approve_and_reject() {
 		list( $o1, $pending )  = $this->row_in_state( 'pending' );
 		list( , $approved )    = $this->row_in_state( 'approved' );

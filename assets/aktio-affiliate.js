@@ -22,8 +22,11 @@
 	function consented() { return typeof window.wp_has_consent === 'function' && window.wp_has_consent('marketing'); }
 
 	if (c.mode === 'consent_api') {
-		if (typeof window.wp_has_consent !== 'function') { return; }
 		if (consented()) { send(); return; }
+		// WP 6.2 ignoruje defer: Consent API może załadować się dopiero po tym skrypcie.
+		if (typeof window.wp_has_consent !== 'function' && document.readyState === 'loading') {
+			document.addEventListener('DOMContentLoaded', function () { if (consented()) { send(); } });
+		}
 		document.addEventListener('wp_listen_for_consent_change', function (e) {
 			var t = e && e.detail && e.detail.marketing;
 			if (t === 'allow' || (t === undefined && consented())) { send(); }

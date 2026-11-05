@@ -8,7 +8,7 @@ const path = require('node:path');
 
 const SRC = fs.readFileSync(path.join(__dirname, '../../assets/aktio-affiliate.js'), 'utf8');
 
-function boot({ mode, search = '?ref=abc&a=1', consent } = {}) {
+function boot({ mode, search = '?ref=abc&a=1', consent, readyState } = {}) {
 	const requests = [];
 	const replaced = [];
 	const listeners = {};
@@ -26,7 +26,7 @@ function boot({ mode, search = '?ref=abc&a=1', consent } = {}) {
 	const ctx = {
 		window: win,
 		location: new URL('https://shop.test/p/' + search + '#h'),
-		document: { addEventListener: (n, f) => { (listeners[n] = listeners[n] || []).push(f); } },
+		document: { readyState, addEventListener: (n, f) => { (listeners[n] = listeners[n] || []).push(f); } },
 		URL, URLSearchParams, Promise,
 		history: win.history,
 		fetch: win.fetch,
@@ -38,7 +38,11 @@ function boot({ mode, search = '?ref=abc&a=1', consent } = {}) {
 		const detail = []; detail[category] = value;
 		(listeners.wp_listen_for_consent_change || []).forEach((f) => f({ detail }));
 	};
-	return { requests, replaced, listeners, order, tick, fire };
+	const ready = (late) => {
+		if (late !== undefined) { win.wp_has_consent = () => late.value; }
+		(listeners.DOMContentLoaded || []).forEach((f) => f({}));
+	};
+	return { requests, replaced, listeners, order, tick, fire, ready };
 }
 
 test('no parameter: no request, no URL change', async () => {
@@ -103,4 +107,48 @@ test('consent_api: a second consent event does not send twice', async () => {
 	t.fire('marketing', 'allow');
 	await t.tick();
 	assert.strictEqual(t.requests.length, 1);
+});
+
+test('consent_api: Consent API loaded after a non-deferred script, consent already given: sends on DOMContentLoaded', async () => {
+	const t = boot({ mode: 'consent_api', readyState: 'loading' });
+	assert.strictEqual(t.requests.length, 0);
+	t.ready({ value: true });
+	await t.tick();
+	assert.strictEqual(t.requests.length, 1);
+	assert.strictEqual(t.replaced.length, 1);
+});
+
+test('consent_api: Consent API loaded later, no consent yet: waits for the consent event', async () => {
+	const consent = { value: false };
+	const t = boot({ mode: 'consent_api', readyState: 'loading' });
+	t.ready(consent);
+	await t.tick();
+	assert.strictEqual(t.requests.length, 0);
+	consent.value = true;
+	t.fire('marketing', 'allow');
+	await t.tick();
+	assert.strictEqual(t.requests.length, 1);
+});
+
+test('consent_api: still no Consent API at DOMContentLoaded: no request, URL unchanged', async () => {
+	const t = boot({ mode: 'consent_api', readyState: 'loading' });
+	t.ready();
+	await t.tick();
+	assert.strictEqual(t.requests.length, 0);
+	assert.strictEqual(t.replaced.length, 0);
+});
+
+test('consent_api: consent event before the API function is defined still counts', async () => {
+	const t = boot({ mode: 'consent_api', readyState: 'loading' });
+	t.fire('marketing', 'allow');
+	await t.tick();
+	assert.strictEqual(t.requests.length, 1);
+	t.ready({ value: true });
+	await t.tick();
+	assert.strictEqual(t.requests.length, 1, 'The later re-check does not send twice.');
+});
+
+test('consent_api: API absent after loading: no re-check is registered', () => {
+	const t = boot({ mode: 'consent_api', readyState: 'interactive' });
+	assert.strictEqual((t.listeners.DOMContentLoaded || []).length, 0);
 });

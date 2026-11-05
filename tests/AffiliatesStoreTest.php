@@ -203,6 +203,28 @@ class AffiliatesStoreTest extends WP_UnitTestCase {
 		$this->assertFalse( get_option( Store::SCHEMA_OPTION ) );
 	}
 
+	public function test_opt_in_uninstall_removes_coupon_assignments() {
+		$affiliate = Store::save_affiliate( array( 'name' => 'Ola' ) );
+		$this->assertTrue( true === Store::assign_coupon( $affiliate, $this->coupon_code_for_uninstall() ) );
+
+		Store::uninstall();
+		$this->assertSame( (string) $affiliate, (string) ( new WC_Coupon( 'uninstall10' ) )->get_meta( Store::COUPON_META ), 'Without opt-in the assignment stays with the tables.' );
+
+		Settings::update( array( 'affiliates' => array( 'delete_on_uninstall' => true ) ) );
+		remove_filter( 'query', array( $this, '_drop_temporary_tables' ) );
+		Store::uninstall();
+		global $wpdb;
+		$this->assertSame( '0', (string) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->postmeta} WHERE meta_key = %s", Store::COUPON_META ) ) ); // phpcs:ignore WordPress.DB
+		$this->assertSame( '', (string) ( new WC_Coupon( 'uninstall10' ) )->get_meta( Store::COUPON_META ), 'Ids restart after a reinstall: an old coupon must not pay a new partner.' );
+	}
+
+	private function coupon_code_for_uninstall(): string {
+		$coupon = new WC_Coupon();
+		$coupon->set_code( 'uninstall10' );
+		$coupon->save();
+		return 'uninstall10';
+	}
+
 	public function test_hpos_declared() {
 		do_action( 'before_woocommerce_init' );
 		$lists = \Automattic\WooCommerce\Utilities\FeaturesUtil::get_compatible_plugins_for_feature( 'custom_order_tables' );
