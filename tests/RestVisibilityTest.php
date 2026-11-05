@@ -18,7 +18,7 @@ class RestVisibilityTest extends WP_UnitTestCase {
 		$this->assertSame( 200, $res->get_status() );
 		$data = $res->get_data();
 		$this->assertSame( array( 'features', 'seo_plugins', 'settings' ), array_keys( $data ) );
-		$this->assertSame( array( 'company', 'bots', 'merchant', 'seo', 'content_language', 'indexnow', 'verification' ), array_keys( $data['settings'] ) );
+		$this->assertSame( array( 'company', 'bots', 'merchant', 'seo', 'content_language', 'indexnow', 'verification', 'affiliates' ), array_keys( $data['settings'] ) );
 		$this->assertSame( 'block', $data['settings']['bots']['GPTBot'] );
 		$this->assertSame( 'allow', $data['settings']['bots']['ClaudeBot'] );
 

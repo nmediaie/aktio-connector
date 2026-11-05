@@ -35,7 +35,7 @@ class SettingsPage {
 	const NOTICES = array( 'sitemap', 'cache', 'cache_none' );
 
 	/** Zakładki w kolejności wyświetlania; „store” tylko z WooCommerce. */
-	const TABS = array( 'overview', 'company', 'seo', 'store', 'bots', 'visibility', 'tools', 'about' );
+	const TABS = array( 'overview', 'company', 'seo', 'store', 'affiliates', 'bots', 'visibility', 'tools', 'about' );
 
 	/** Zakładki z polami formularza (pasek zapisu); pozostałe są tylko do odczytu. */
 	const EDITABLE_TABS = array( 'company', 'seo', 'store', 'bots' );
@@ -107,6 +107,7 @@ class SettingsPage {
 		add_action( 'admin_post_' . self::ACTION, array( __CLASS__, 'handle_save' ) );
 		add_action( 'admin_post_' . self::SITEMAP_ACTION, array( __CLASS__, 'handle_indexnow_sitemap' ) );
 		add_action( 'admin_post_' . self::CACHE_ACTION, array( __CLASS__, 'handle_cache_purge' ) );
+		AffiliatesTab::register();
 		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue_assets' ) );
 		add_filter( 'plugin_action_links_' . plugin_basename( AKTIO_CONNECTOR_FILE ), array( __CLASS__, 'action_links' ) );
 	}
@@ -474,6 +475,12 @@ class SettingsPage {
 		self::action_form( 'aktio-sitemap-form', self::SITEMAP_ACTION, self::SITEMAP_NONCE, '_aktio_sitemap_nonce' );
 		self::action_form( 'aktio-cache-form', self::CACHE_ACTION, self::CACHE_NONCE, '_aktio_cache_nonce' );
 
+		if ( isset( $tabs['affiliates'] ) ) {
+			self::panel_open( 'affiliates', $active, '' );
+			AffiliatesTab::render();
+			self::panel_close();
+		}
+
 		self::panel_open( 'overview', $active, __( 'What Aktio Connector does on this site and what is still worth filling in.', 'aktio-connector' ) );
 		self::render_checklist( $settings );
 		self::render_features();
@@ -503,6 +510,7 @@ class SettingsPage {
 			'company'    => __( 'Business', 'aktio-connector' ),
 			'seo'        => __( 'SEO', 'aktio-connector' ),
 			'store'      => __( 'Store', 'aktio-connector' ),
+			'affiliates' => __( 'Affiliates', 'aktio-connector' ),
 			'bots'       => __( 'Bots & indexing', 'aktio-connector' ),
 			'visibility' => __( 'AI visibility', 'aktio-connector' ),
 			'tools'      => __( 'Tools', 'aktio-connector' ),
@@ -510,6 +518,9 @@ class SettingsPage {
 		);
 		if ( ! self::woocommerce_available() ) {
 			unset( $labels['store'] );
+		}
+		if ( ! AffiliatesTab::available() ) {
+			unset( $labels['affiliates'] );
 		}
 		return $labels;
 	}
